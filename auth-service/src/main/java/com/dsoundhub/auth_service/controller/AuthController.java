@@ -6,7 +6,6 @@ import com.dsoundhub.auth_service.dto.TokenResponse;
 import com.dsoundhub.auth_service.security.JwtProvider;
 import com.dsoundhub.auth_service.service.AuthService;
 import io.jsonwebtoken.Claims;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,9 +34,17 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request) {
-        TokenResponse tokenResponse = authService.login(loginRequest, request);
+    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
+        TokenResponse tokenResponse = authService.login(loginRequest);
         return ResponseEntity.ok(tokenResponse);
+    }
+
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<?> logout(@RequestParam(value = "sessionId", required = false) String sessionId) {
+        authService.logout(sessionId);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Logged out successfully");
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/internal/validate-token")
@@ -58,3 +65,4 @@ public class AuthController {
         }
     }
 }
+

@@ -7,14 +7,11 @@ import com.dsoundhub.auth_service.entity.Role;
 import com.dsoundhub.auth_service.entity.User;
 import com.dsoundhub.auth_service.repository.UserRepository;
 import com.dsoundhub.auth_service.security.JwtProvider;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Service
 public class AuthService {
@@ -22,11 +19,14 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final SessionService sessionService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                       JwtProvider jwtProvider, SessionService sessionService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
+        this.sessionService = sessionService;
     }
 
     @Transactional
@@ -62,7 +62,7 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public TokenResponse login(LoginRequest loginRequest, HttpServletRequest request) {
+    public TokenResponse login(LoginRequest loginRequest) {
         User user = userRepository.findByUsername(loginRequest.username())
                 .orElseThrow(() -> new RuntimeException("Invalid username or password"));
 
@@ -76,12 +76,22 @@ public class AuthService {
 
         String token = jwtProvider.generateToken(user);
 
+        // Jika ADMIN, buat session Redis dan sertakan sessionId di response
+        String sessionId = null;
         if (user.getRole() == Role.ADMIN) {
-            HttpSession session = request.getSession(true);
-            session.setAttribute("adminId", user.getId().toString());
-            session.setAttribute("sessionCreatedAt", LocalDateTime.now().toString());
+            sessionId = sessionService.createAdminSession(user.getId().toString());
         }
 
-        return new TokenResponse(token, user.getRole().name(), user.getUsername());
+        return new TokenResponse(token, user.getRole().name(), user.getUsername(), sessionId);
+    }
+
+    /**
+     * Logout — hapus session Admin dari Redis.
+     * @param sessionId ID session admin yang akan dihapus
+     */
+    public void logout(String sessionId) {
+        if (sessionId != null && !sessionId.isBlank()) {
+            sessionService.destroyAdminSession(sessionId);
+        }
     }
 }

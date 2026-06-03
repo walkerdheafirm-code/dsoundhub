@@ -1,14 +1,12 @@
-package com.dsoundhub.auth_service.config;
+package com.dsoundhub.audio_service.config;
 
-import com.dsoundhub.auth_service.security.JwtFilter;
+import com.dsoundhub.audio_service.security.JwtValidationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -17,19 +15,20 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Konfigurasi Spring Security untuk audio-service.
+ * Stateless (tidak menggunakan session HTTP), semua autentikasi via JWT.
+ * BanCheckInterceptor dijalankan sebagai HandlerInterceptor (bukan filter),
+ * sehingga berjalan SETELAH SecurityFilterChain dan SEBELUM controller.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtFilter jwtFilter;
+    private final JwtValidationFilter jwtValidationFilter;
 
-    public SecurityConfig(JwtFilter jwtFilter) {
-        this.jwtFilter = jwtFilter;
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12); // BCrypt strength 12
+    public SecurityConfig(JwtValidationFilter jwtValidationFilter) {
+        this.jwtValidationFilter = jwtValidationFilter;
     }
 
     @Bean
@@ -37,15 +36,18 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-                .requestMatchers("/api/auth/logout").authenticated()
-                .requestMatchers("/internal/validate-token").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/audio/upload").hasRole("ARTIST")
+                .requestMatchers("/api/audio/my-songs").hasRole("ARTIST")
+                .requestMatchers("/api/audio/purchase/**").hasRole("LISTENER")
+                .requestMatchers("/api/audio/my-library").hasRole("LISTENER")
+                .requestMatchers("/api/royalties/my").hasRole("ARTIST")
+                .requestMatchers("/api/royalties/summary").hasRole("ADMIN")
+                .requestMatchers("/api/audio/songs", "/api/audio/preview/**").authenticated()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtValidationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -63,4 +65,3 @@ public class SecurityConfig {
         return source;
     }
 }
-

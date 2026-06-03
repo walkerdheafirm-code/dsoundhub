@@ -7,8 +7,6 @@ import com.dsoundhub.auth_service.entity.Role;
 import com.dsoundhub.auth_service.entity.User;
 import com.dsoundhub.auth_service.repository.UserRepository;
 import com.dsoundhub.auth_service.security.JwtProvider;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -34,10 +32,7 @@ class AuthServiceTest {
     private JwtProvider jwtProvider;
 
     @Mock
-    private HttpServletRequest request;
-
-    @Mock
-    private HttpSession session;
+    private SessionService sessionService;
 
     @InjectMocks
     private AuthService authService;
@@ -95,20 +90,22 @@ class AuthServiceTest {
         when(passwordEncoder.matches("password", "hashed_password")).thenReturn(true);
         when(jwtProvider.generateToken(user)).thenReturn("mocked_jwt_token");
 
-        TokenResponse tokenResponse = authService.login(loginRequest, request);
+        TokenResponse tokenResponse = authService.login(loginRequest);
 
         assertNotNull(tokenResponse);
         assertEquals("mocked_jwt_token", tokenResponse.token());
         assertEquals("LISTENER", tokenResponse.role());
         assertEquals("john_doe", tokenResponse.username());
-        verify(request, never()).getSession(anyBoolean());
+        assertNull(tokenResponse.sessionId()); // Listener tidak mendapat sessionId
+        verify(sessionService, never()).createAdminSession(anyString());
     }
 
     @Test
     void login_success_admin() {
         LoginRequest loginRequest = new LoginRequest("admin", "password");
         User user = new User();
-        user.setId(UUID.randomUUID());
+        UUID adminId = UUID.randomUUID();
+        user.setId(adminId);
         user.setUsername("admin");
         user.setPasswordHash("hashed_password");
         user.setRole(Role.ADMIN);
@@ -117,15 +114,15 @@ class AuthServiceTest {
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "hashed_password")).thenReturn(true);
         when(jwtProvider.generateToken(user)).thenReturn("mocked_jwt_token");
-        when(request.getSession(true)).thenReturn(session);
+        when(sessionService.createAdminSession(adminId.toString())).thenReturn("mocked_session_id");
 
-        TokenResponse tokenResponse = authService.login(loginRequest, request);
+        TokenResponse tokenResponse = authService.login(loginRequest);
 
         assertNotNull(tokenResponse);
         assertEquals("mocked_jwt_token", tokenResponse.token());
         assertEquals("ADMIN", tokenResponse.role());
-        verify(request, times(1)).getSession(true);
-        verify(session, times(1)).setAttribute(eq("adminId"), anyString());
+        assertEquals("mocked_session_id", tokenResponse.sessionId()); // Admin mendapat sessionId
+        verify(sessionService, times(1)).createAdminSession(adminId.toString());
     }
 
     @Test
@@ -141,7 +138,25 @@ class AuthServiceTest {
         when(userRepository.findByUsername("john_doe")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password", "hashed_password")).thenReturn(true);
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> authService.login(loginRequest, request));
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> authService.login(loginRequest));
         assertEquals("Account suspended", exception.getMessage());
+    }
+
+    @Test
+    void logout_withSessionId_destroysSession() {
+        authService.logout("some-session-id");
+        verify(sessionService, times(1)).destroyAdminSession("some-session-id");
+    }
+
+    @Test
+    void logout_withNullSessionId_doesNothing() {
+        authService.logout(null);
+        verify(sessionService, never()).destroyAdminSession(anyString());
+    }
+
+    @Test
+    void logout_withBlankSessionId_doesNothing() {
+        authService.logout("   ");
+        verify(sessionService, never()).destroyAdminSession(anyString());
     }
 }
