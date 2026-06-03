@@ -1,0 +1,87 @@
+package com.dsoundhub.auth_service.service;
+
+import com.dsoundhub.auth_service.dto.LoginRequest;
+import com.dsoundhub.auth_service.dto.RegisterRequest;
+import com.dsoundhub.auth_service.dto.TokenResponse;
+import com.dsoundhub.auth_service.entity.Role;
+import com.dsoundhub.auth_service.entity.User;
+import com.dsoundhub.auth_service.repository.UserRepository;
+import com.dsoundhub.auth_service.security.JwtProvider;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Service
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtProvider jwtProvider;
+
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtProvider = jwtProvider;
+    }
+
+    @Transactional
+    public void register(RegisterRequest registerRequest) {
+        if (userRepository.existsByUsername(registerRequest.username())) {
+            throw new RuntimeException("Username already exists");
+        }
+
+        if (userRepository.existsByEmail(registerRequest.email())) {
+            throw new RuntimeException("Email already exists");
+        }
+
+        Role role;
+        try {
+            role = Role.valueOf(registerRequest.role().toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new RuntimeException("Invalid role specified");
+        }
+
+        if (role == Role.ADMIN) {
+            throw new RuntimeException("Admin registration is not allowed");
+        }
+
+        User user = new User();
+        user.setUsername(registerRequest.username());
+        user.setEmail(registerRequest.email());
+        user.setPasswordHash(passwordEncoder.encode(registerRequest.password()));
+        user.setRole(role);
+        user.setIsBanned(false);
+        user.setBalance(BigDecimal.ZERO);
+
+        userRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public TokenResponse login(LoginRequest loginRequest, HttpServletRequest request) {
+        User user = userRepository.findByUsername(loginRequest.username())
+                .orElseThrow(() -> new RuntimeException("Invalid username or password"));
+
+        if (!passwordEncoder.matches(loginRequest.password(), user.getPasswordHash())) {
+            throw new RuntimeException("Invalid username or password");
+        }
+
+        if (Boolean.TRUE.equals(user.getIsBanned())) {
+            throw new RuntimeException("Account suspended");
+        }
+
+        String token = jwtProvider.generateToken(user);
+
+        if (user.getRole() == Role.ADMIN) {
+            HttpSession session = request.getSession(true);
+            session.setAttribute("adminId", user.getId().toString());
+            session.setAttribute("sessionCreatedAt", LocalDateTime.now().toString());
+        }
+
+        return new TokenResponse(token, user.getRole().name(), user.getUsername());
+    }
+}
