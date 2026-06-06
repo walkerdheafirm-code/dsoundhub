@@ -4,6 +4,7 @@ import com.dsoundhub.audio_service.dto.SongRequest;
 import com.dsoundhub.audio_service.dto.SongResponse;
 import com.dsoundhub.audio_service.entity.Song;
 import com.dsoundhub.audio_service.service.AudioService;
+import com.dsoundhub.audio_service.service.TransactionService;
 import jakarta.validation.Valid;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -21,16 +22,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/audio")
 public class AudioController {
 
+    private final TransactionService transactionService;
     private final AudioService audioService;
 
-    public AudioController(AudioService audioService) {
+    public AudioController(AudioService audioService, TransactionService transactionService) {
         this.audioService = audioService;
+        this.transactionService = transactionService;
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -77,4 +81,37 @@ public class AudioController {
                 .contentType(MediaType.parseMediaType("audio/mpeg"))
                 .body(new ByteArrayResource(previewBytes));
     }
+
+    @PostMapping("/purchase/{id}")
+    @PreAuthorize("hasRole('LISTENER')")
+    public ResponseEntity<Map<String, String>> purchaseSong(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        UUID listenerId = UUID.fromString(userDetails.getUsername());
+        transactionService.purchaseSong(listenerId, id);
+        return ResponseEntity.ok(Map.of("message", "Song purchased successfully"));
+    }
+
+    @GetMapping("/my-library")
+    @PreAuthorize("hasRole('LISTENER')")
+    public ResponseEntity<List<SongResponse>> getMyLibrary(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        UUID listenerId = UUID.fromString(userDetails.getUsername());
+        List<SongResponse> songs = transactionService.getListenerLibrary(listenerId)
+                .stream()
+                .map(t -> new SongResponse(
+                        t.getSong().getId(),
+                        t.getSong().getArtistId(),
+                        t.getSong().getTitle(),
+                        t.getSong().getGenre(),
+                        t.getSong().getPrice(),
+                        t.getSong().getDurationSeconds(),
+                        t.getSong().getTotalPlays(),
+                        t.getSong().getCreatedAt()))
+                .toList();
+        return ResponseEntity.ok(songs);
+    }
+
 }
