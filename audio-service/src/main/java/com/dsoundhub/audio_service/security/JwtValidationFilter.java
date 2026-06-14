@@ -23,7 +23,8 @@ import java.util.Collections;
 /**
  * Filter JWT untuk audio-service.
  * Mengvalidasi JWT token dan meng-set Authentication ke SecurityContext.
- * Menyimpan userId di authentication.details agar BanCheckInterceptor dapat membacanya.
+ * Menyimpan userId di authentication.details agar BanCheckInterceptor dapat
+ * membacanya.
  */
 @Component
 public class JwtValidationFilter extends OncePerRequestFilter {
@@ -53,11 +54,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                 String userId = claims.get("userId", String.class);
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        username, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
-                );
-
-                // Simpan userId di details agar BanCheckInterceptor bisa membaca
-                authentication.setDetails(userId);
+                        userId, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (ExpiredJwtException e) {

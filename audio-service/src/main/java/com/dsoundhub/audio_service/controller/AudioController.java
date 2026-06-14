@@ -13,7 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -42,9 +42,9 @@ public class AudioController {
     public ResponseEntity<SongResponse> uploadSong(
             @RequestPart("metadata") @Valid SongRequest request,
             @RequestPart("file") MultipartFile file,
-            @AuthenticationPrincipal UserDetails userDetails) throws IOException {
+            @AuthenticationPrincipal String userIdStr) throws IOException {
 
-        UUID artistId = UUID.fromString(userDetails.getUsername());
+        UUID artistId = UUID.fromString(userIdStr);
         SongResponse response = audioService.uploadSong(request, file, artistId);
         return ResponseEntity.ok(response);
     }
@@ -57,9 +57,9 @@ public class AudioController {
     @GetMapping("/my-songs")
     @PreAuthorize("hasRole('ARTIST')")
     public ResponseEntity<List<SongResponse>> getMySongs(
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal String userIdStr) {
 
-        UUID artistId = UUID.fromString(userDetails.getUsername());
+        UUID artistId = UUID.fromString(userIdStr);
         return ResponseEntity.ok(audioService.getSongsByArtist(artistId));
     }
 
@@ -86,9 +86,9 @@ public class AudioController {
     @PreAuthorize("hasRole('LISTENER')")
     public ResponseEntity<Map<String, String>> purchaseSong(
             @PathVariable UUID id,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal String userIdStr) {
 
-        UUID listenerId = UUID.fromString(userDetails.getUsername());
+        UUID listenerId = UUID.fromString(userIdStr);
         transactionService.purchaseSong(listenerId, id);
         return ResponseEntity.ok(Map.of("message", "Song purchased successfully"));
     }
@@ -96,9 +96,9 @@ public class AudioController {
     @GetMapping("/my-library")
     @PreAuthorize("hasRole('LISTENER')")
     public ResponseEntity<List<SongResponse>> getMyLibrary(
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal String userIdStr) {
 
-        UUID listenerId = UUID.fromString(userDetails.getUsername());
+        UUID listenerId = UUID.fromString(userIdStr);
         List<SongResponse> songs = transactionService.getListenerLibrary(listenerId)
                 .stream()
                 .map(t -> new SongResponse(
