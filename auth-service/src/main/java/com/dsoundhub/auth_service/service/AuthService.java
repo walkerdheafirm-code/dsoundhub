@@ -29,6 +29,25 @@ public class AuthService {
         this.sessionService = sessionService;
     }
 
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    @Transactional
+    public void seedAdmin() {
+        if (userRepository.findByUsername("admin").isEmpty()) {
+            User admin = new User();
+            admin.setUsername("admin");
+            admin.setEmail("admin@dsoundhub.com");
+            admin.setPasswordHash(passwordEncoder.encode("admin123"));
+            admin.setRole(Role.ADMIN);
+            admin.setIsBanned(false);
+            admin.setBalance(BigDecimal.ZERO);
+            userRepository.save(admin);
+            System.out.println("=================================================");
+            System.out.println("Seeded default admin user: admin / admin123");
+            System.out.println("=================================================");
+        }
+    }
+
+
     @Transactional
     public void register(RegisterRequest registerRequest) {
         if (userRepository.existsByUsername(registerRequest.username())) {

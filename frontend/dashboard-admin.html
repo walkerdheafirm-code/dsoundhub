@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Admin Control Panel</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub Control Panel
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-admin">Admin</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <button class="btn btn-secondary" onclick="performLogout()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Logout
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="flex-between mb-4">
+      <div>
+        <h1 style="margin-bottom: 0.2rem;">Control Panel</h1>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Moderate platform accounts, configure states, and manage financial distributions.</p>
+      </div>
+    </div>
+
+    <!-- Stats summary cards -->
+    <div class="stat-group">
+      <div class="stat-card">
+        <span class="stat-label">Total Accounts</span>
+        <span id="stat-total-users" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Banned Accounts</span>
+        <span id="stat-banned-users" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Pending Royalties Queue</span>
+        <span id="stat-pending-royalties" class="stat-value">0.00 pts</span>
+      </div>
+    </div>
+
+    <div class="grid-main-sidebar">
+      <!-- User moderation table -->
+      <div class="card">
+        <div class="card-title">
+          <span>User Moderation</span>
+          <button class="btn btn-secondary" onclick="loadUsers()" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+            Reload Accounts
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Balance</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="users-list">
+              <tr>
+                <td colspan="6" class="no-data">Loading user accounts...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right sidebar panel: Royalty settlement actions -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div class="card">
+          <div class="card-title">
+            <span>Royalty Settlements</span>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+            Batch-process pending artist payouts. Payouts will move from <strong>PENDING</strong> to <strong>SETTLED</strong>.
+          </p>
+          <button class="btn btn-success btn-block" onclick="settleRoyalties()" id="settle-btn">
+            Settle All Pending Royalties
+          </button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>Pending Payout Queue</span>
+          </div>
+          <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Artist ID</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody id="pending-royalties-list">
+                <tr>
+                  <td colspan="2" class="no-data">No pending payouts.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    // Validate admin credentials
+    const authUser = requireAuth(['ADMIN']);
+    if (authUser) {
+      document.getElementById('nav-username').textContent = authUser.username;
+    }
+
+    // Load data on page launch
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadUsers();
+      await loadPendingRoyalties();
+    });
+
+    async function loadUsers() {
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/admin/users`);
+        if (!response.ok) throw new Error('Failed to load accounts');
+        const users = await response.json();
+
+        // Update stats
+        document.getElementById('stat-total-users').textContent = users.length;
+        const bannedCount = users.filter(u => u.isBanned).length;
+        document.getElementById('stat-banned-users').textContent = bannedCount;
+
+        const tbody = document.getElementById('users-list');
+        if (users.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="no-data">No user accounts found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = users.map(user => {
+          const statusBadge = user.isBanned 
+            ? `<span class="badge-status status-banned">Banned</span>`
+            : `<span class="badge-status status-active">Active</span>`;
+
+          // Disable ban button for current logged in admin
+          const isSelf = user.username === authUser.username;
+          let actionBtn = '';
+          if (isSelf) {
+            actionBtn = `<span style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;">Logged In</span>`;
+          } else {
+            actionBtn = user.isBanned 
+              ? `<button class="btn btn-success" onclick="unbanUser('${user.id}', '${user.username}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 65px;">Unban</button>`
+              : `<button class="btn btn-danger" onclick="banUser('${user.id}', '${user.username}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 65px;">Ban</button>`;
+          }
+
+          return `
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--text-main);">${user.username}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">ID: ${user.id.substring(0, 8)}...</div>
+              </td>
+              <td>${user.email}</td>
+              <td><span class="user-role role-${user.role.toLowerCase()}">${user.role}</span></td>
+              <td style="font-weight: 500;">${formatCurrency(user.balance)} pts</td>
+              <td>${statusBadge}</td>
+              <td>${actionBtn}</td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (error) {
+        showToast('Error loading user accounts: ' + error.message, 'danger');
+        document.getElementById('users-list').innerHTML = `<tr><td colspan="6" class="no-data" style="color: var(--danger);">Failed to load accounts</td></tr>`;
+      }
+    }
+
+    async function banUser(userId, username) {
+      if (!confirm(`Are you sure you want to ban user "${username}"?`)) return;
+
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/admin/users/${userId}/ban`, {
+          method: 'PUT'
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Ban request failed');
+        }
+
+        showToast(`User "${username}" has been banned`, 'success');
+        await loadUsers();
+
+      } catch (error) {
+        showToast(error.message, 'danger');
+      }
+    }
+
+    async function unbanUser(userId, username) {
+      if (!confirm(`Are you sure you want to unban user "${username}"?`)) return;
+
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/admin/users/${userId}/unban`, {
+          method: 'PUT'
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Unban request failed');
+        }
+
+        showToast(`User "${username}" has been unbanned`, 'success');
+        await loadUsers();
+
+      } catch (error) {
+        showToast(error.message, 'danger');
+      }
+    }
+
+    async function loadPendingRoyalties() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/royalties/summary`);
+        if (!response.ok) throw new Error('Failed to load pending royalties summary');
+        const data = await response.json();
+
+        // Calculate total pending
+        let totalPending = 0;
+        data.forEach(r => totalPending += (r.amount || 0));
+        document.getElementById('stat-pending-royalties').textContent = `${formatCurrency(totalPending)} pts`;
+
+        const tbody = document.getElementById('pending-royalties-list');
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="2" class="no-data">No pending royalties.</td></tr>`;
+          return;
+        }
+
+        // Group by artist for readable queue summary
+        const grouped = {};
+        data.forEach(r => {
+          grouped[r.artistId] = (grouped[r.artistId] || 0) + (r.amount || 0);
+        });
+
+        tbody.innerHTML = Object.entries(grouped).map(([artistId, amount]) => `
+          <tr>
+            <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">${artistId.substring(0, 8)}...</td>
+            <td style="font-weight: 600; color: var(--warning);">${formatCurrency(amount)} pts</td>
+          </tr>
+        `).join('');
+
+      } catch (error) {
+        showToast('Error loading royalties summary: ' + error.message, 'danger');
+        document.getElementById('pending-royalties-list').innerHTML = `<tr><td colspan="2" class="no-data" style="color: var(--danger);">Failed to load</td></tr>`;
+      }
+    }
+
+    async function settleRoyalties() {
+      const btn = document.getElementById('settle-btn');
+      if (!confirm('Are you sure you want to settle all pending royalties? This will dispatch virtual earnings to all artists.')) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Settling Royalties...';
+
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/royalties/settle`, {
+          method: 'POST'
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Settlement failed');
+        }
+
+        showToast('All pending royalties have been settled successfully!', 'success');
+        
+        // Reload dashboard
+        await loadPendingRoyalties();
+        await loadUsers(); // reload user balances if affected
+
+      } catch (error) {
+        showToast(error.message, 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Settle All Pending Royalties';
+      }
+    }
+  </script>
+</body>
+</html>

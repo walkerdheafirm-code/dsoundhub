@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Artist Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-artist">Artist</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <button class="btn btn-secondary" onclick="performLogout()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Logout
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="flex-between mb-4">
+      <div>
+        <h1 style="margin-bottom: 0.2rem;">Artist Hub</h1>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Manage your music uploads, track your stats, and monitor royalty payouts.</p>
+      </div>
+    </div>
+
+    <!-- Stat Cards Section -->
+    <div class="stat-group">
+      <div class="stat-card">
+        <span class="stat-label">Total Earnings</span>
+        <span id="stat-total-royalty" class="stat-value">0.00 pts</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Songs Uploaded</span>
+        <span id="stat-song-count" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Total Plays</span>
+        <span id="stat-total-plays" class="stat-value">0</span>
+      </div>
+    </div>
+
+    <div class="grid-main-sidebar">
+      <!-- Main Columns: Upload List & Royalties -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- Uploaded Songs Table -->
+        <div class="card">
+          <div class="card-title">
+            <span>My Tracks</span>
+          </div>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Genre</th>
+                  <th>Price</th>
+                  <th>Duration</th>
+                  <th>Plays</th>
+                  <th>Preview</th>
+                </tr>
+              </thead>
+              <tbody id="artist-songs-list">
+                <tr>
+                  <td colspan="6" class="no-data">Loading tracks...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Royalty Ledgers Table -->
+        <div class="card">
+          <div class="card-title">
+            <span>Royalty Ledger</span>
+          </div>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Royalty ID</th>
+                  <th>Transaction ID</th>
+                  <th>Amount (70%)</th>
+                  <th>Status</th>
+                  <th>Settled At</th>
+                </tr>
+              </thead>
+              <tbody id="royalty-list">
+                <tr>
+                  <td colspan="5" class="no-data">Loading royalties...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar Form Upload -->
+      <div class="card" style="height: fit-content;">
+        <div class="card-title">
+          <span>Upload New Track</span>
+        </div>
+        <form id="upload-form" onsubmit="handleUpload(event)">
+          <div class="form-group">
+            <label for="upload-title">Track Title</label>
+            <input type="text" id="upload-title" class="form-control" placeholder="Enter track title" required>
+          </div>
+          <div class="form-group">
+            <label for="upload-genre">Genre</label>
+            <input type="text" id="upload-genre" class="form-control" placeholder="e.g. Pop, Rock, Electronic">
+          </div>
+          <div class="form-group">
+            <label for="upload-price">Price (Points)</label>
+            <input type="number" id="upload-price" class="form-control" min="0" step="0.5" placeholder="e.g. 5.0" required>
+          </div>
+          <div class="form-group">
+            <label for="upload-duration">Duration (Seconds)</label>
+            <input type="number" id="upload-duration" class="form-control" min="1" placeholder="e.g. 180" required>
+          </div>
+          
+          <div class="form-group">
+            <label>Audio File (MP3/WAV)</label>
+            <div id="drop-zone" class="file-drop-zone" onclick="document.getElementById('upload-file').click()">
+              <span class="icon">📁</span>
+              <p id="drop-zone-text">Drag & drop your audio file here, or click to browse</p>
+              <input type="file" id="upload-file" accept="audio/mpeg, audio/wav, audio/mp3" style="display: none;" onchange="handleFileSelect(this)">
+            </div>
+            <div id="file-info" style="display: none; font-size: 0.8rem; color: var(--accent-secondary); margin-bottom: 1rem;">
+              Selected: <span id="file-info-name">filename.mp3</span> (<span id="file-info-size">0 MB</span>)
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="upload-btn">
+            Publish Track
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <!-- Audio Player Bar (Fixed Bottom) -->
+  <div id="player-bar" class="player-bar">
+    <div class="player-container">
+      <div class="player-info">
+        <div id="player-track-title" class="player-title">Track Title</div>
+        <div id="player-track-artist" class="player-artist">Artist</div>
+      </div>
+      
+      <div class="player-controls">
+        <div class="control-buttons">
+          <button id="player-play-pause-btn" class="play-pause-btn">&#9654;</button>
+        </div>
+        <div class="player-timeline">
+          <span id="player-time-current" class="time-display">0:00</span>
+          <input type="range" id="player-timeline-slider" class="timeline-slider" min="0" max="100" value="0">
+          <span id="player-time-duration" class="time-display">0:00</span>
+        </div>
+      </div>
+
+      <div class="player-volume">
+        <span class="volume-icon">&#128266;</span>
+        <input type="range" id="player-volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.7">
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    // Validate authentication
+    const authUser = requireAuth(['ARTIST']);
+    if (authUser) {
+      document.getElementById('nav-username').textContent = authUser.username;
+    }
+
+    let selectedFile = null;
+    let currentAudio = null;
+    let currentSongId = null;
+    let isPlaying = false;
+
+    // Load elements on start
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadStats();
+      await loadMySongs();
+      await loadRoyalties();
+      setupDragAndDrop();
+    });
+
+    async function loadStats() {
+      try {
+        const royaltyRes = await apiCall(`${AUDIO_SERVICE_URL}/api/royalties/my/total`);
+        if (royaltyRes.ok) {
+          const rData = await royaltyRes.json();
+          document.getElementById('stat-total-royalty').textContent = `${formatCurrency(rData.totalRoyalty)} pts`;
+        }
+      } catch (e) {
+        console.warn('Failed to load total royalty stats', e);
+      }
+    }
+
+    async function loadMySongs() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/my-songs`);
+        if (!response.ok) throw new Error('Failed to fetch songs');
+        const data = await response.json();
+        
+        document.getElementById('stat-song-count').textContent = data.length;
+        
+        let totalPlays = 0;
+        data.forEach(song => totalPlays += (song.totalPlays || 0));
+        document.getElementById('stat-total-plays').textContent = totalPlays;
+
+        const tbody = document.getElementById('artist-songs-list');
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="no-data">You have not uploaded any tracks.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.map(song => `
+          <tr>
+            <td><strong style="color: var(--text-main);">${song.title}</strong></td>
+            <td>${song.genre || '—'}</td>
+            <td style="font-weight: 600; color: var(--accent-secondary);">${formatCurrency(song.price)} pts</td>
+            <td>${formatDuration(song.durationSeconds)}</td>
+            <td>${song.totalPlays || 0}</td>
+            <td>
+              <button class="btn btn-secondary" onclick="playPreview('${song.id}', '${song.title}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+                Play
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+      } catch (error) {
+        showToast('Error loading tracks: ' + error.message, 'danger');
+        document.getElementById('artist-songs-list').innerHTML = `<tr><td colspan="6" class="no-data" style="color: var(--danger);">Failed to load tracks</td></tr>`;
+      }
+    }
+
+    async function loadRoyalties() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/royalties/my`);
+        if (!response.ok) throw new Error('Failed to fetch royalties');
+        const data = await response.json();
+
+        const tbody = document.getElementById('royalty-list');
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="no-data">No royalty transactions recorded yet.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.map(r => {
+          const statusBadge = r.status === 'SETTLED'
+            ? `<span class="badge-status status-active">Settled</span>`
+            : `<span class="badge-status status-pending">Pending</span>`;
+
+          const settledDate = r.settledAt 
+            ? new Date(r.settledAt).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' }) 
+            : '—';
+
+          return `
+            <tr>
+              <td style="font-size: 0.8rem; font-family: monospace; color: var(--text-muted);">${r.id.substring(0, 8)}...</td>
+              <td style="font-size: 0.8rem; font-family: monospace; color: var(--text-muted);">${r.transaction ? r.transaction.id.substring(0, 8) + '...' : '—'}</td>
+              <td style="font-weight: 600; color: var(--success);">${formatCurrency(r.amount)} pts</td>
+              <td>${statusBadge}</td>
+              <td style="font-size: 0.85rem; color: var(--text-muted);">${settledDate}</td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (error) {
+        showToast('Error loading royalties: ' + error.message, 'danger');
+        document.getElementById('royalty-list').innerHTML = `<tr><td colspan="5" class="no-data" style="color: var(--danger);">Failed to load royalties</td></tr>`;
+      }
+    }
+
+    // Drag & Drop configuration
+    function setupDragAndDrop() {
+      const dropZone = document.getElementById('drop-zone');
+      
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          dropZone.classList.add('dragover');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('dragover');
+        }, false);
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+          const fileInput = document.getElementById('upload-file');
+          fileInput.files = files;
+          handleFileSelect(fileInput);
+        }
+      });
+    }
+
+    function handleFileSelect(input) {
+      if (input.files && input.files[0]) {
+        selectedFile = input.files[0];
+        document.getElementById('file-info-name').textContent = selectedFile.name;
+        document.getElementById('file-info-size').textContent = (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB';
+        document.getElementById('file-info').style.display = 'block';
+        document.getElementById('drop-zone-text').textContent = 'File selected. Ready to upload.';
+      } else {
+        selectedFile = null;
+        document.getElementById('file-info').style.display = 'none';
+        document.getElementById('drop-zone-text').textContent = 'Drag & drop your audio file here, or click to browse';
+      }
+    }
+
+    async function handleUpload(e) {
+      e.preventDefault();
+      
+      if (!selectedFile) {
+        showToast('Please select or drag an audio file (MP3/WAV)', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('upload-btn');
+      btn.disabled = true;
+      btn.textContent = 'Publishing Track...';
+
+      try {
+        const title = document.getElementById('upload-title').value.trim();
+        const genre = document.getElementById('upload-genre').value.trim();
+        const price = parseFloat(document.getElementById('upload-price').value);
+        const durationSeconds = parseInt(document.getElementById('upload-duration').value);
+
+        const formData = new FormData();
+        
+        // Metadata as application/json Blob
+        const metadata = { title, genre, price, durationSeconds };
+        const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+        
+        formData.append('metadata', metadataBlob);
+        formData.append('file', selectedFile);
+
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to upload song');
+        }
+
+        showToast('Track published successfully!', 'success');
+        
+        // Reset form
+        document.getElementById('upload-form').reset();
+        selectedFile = null;
+        document.getElementById('file-info').style.display = 'none';
+        document.getElementById('drop-zone-text').textContent = 'Drag & drop your audio file here, or click to browse';
+
+        // Refresh view data
+        await loadMySongs();
+        await loadStats();
+
+      } catch (error) {
+        showToast(error.message, 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Publish Track';
+      }
+    }
+
+    // Audio preview player controller function
+    async function playPreview(songId, songTitle) {
+      try {
+        if (currentSongId === songId && currentAudio) {
+          if (isPlaying) {
+            currentAudio.pause();
+          } else {
+            await currentAudio.play();
+          }
+          return;
+        }
+
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+        }
+
+        showToast(`Fetching preview for "${songTitle}"...`, 'info');
+
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/preview/${songId}`);
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+
+        currentAudio = new Audio(audioUrl);
+        currentSongId = songId;
+
+        // Display player bar
+        const playerBar = document.getElementById('player-bar');
+        playerBar.classList.add('active');
+        
+        document.getElementById('player-track-title').textContent = songTitle;
+        document.getElementById('player-track-artist').textContent = `My Uploaded Track`;
+
+        const playPauseBtn = document.getElementById('player-play-pause-btn');
+        const timeline = document.getElementById('player-timeline-slider');
+        const timeCurrent = document.getElementById('player-time-current');
+        const timeDuration = document.getElementById('player-time-duration');
+        const volumeSlider = document.getElementById('player-volume-slider');
+
+        // Setup Player event listeners
+        currentAudio.addEventListener('play', () => {
+          isPlaying = true;
+          playPauseBtn.innerHTML = '&#9610;&#9610;'; // Pause icon
+        });
+
+        currentAudio.addEventListener('pause', () => {
+          isPlaying = false;
+          playPauseBtn.innerHTML = '&#9654;'; // Play icon
+        });
+
+        currentAudio.addEventListener('timeupdate', () => {
+          if (!currentAudio) return;
+          const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
+          timeline.value = progress || 0;
+          timeCurrent.textContent = formatDuration(currentAudio.currentTime);
+        });
+
+        currentAudio.addEventListener('loadedmetadata', () => {
+          timeDuration.textContent = formatDuration(currentAudio.duration);
+        });
+
+        currentAudio.addEventListener('ended', () => {
+          isPlaying = false;
+          playPauseBtn.innerHTML = '&#9654;';
+          timeline.value = 0;
+          timeCurrent.textContent = '0:00';
+        });
+
+        // Interface actions
+        playPauseBtn.onclick = () => {
+          if (isPlaying) currentAudio.pause();
+          else currentAudio.play();
+        };
+
+        timeline.oninput = () => {
+          const time = (timeline.value / 100) * currentAudio.duration;
+          currentAudio.currentTime = time;
+        };
+
+        volumeSlider.oninput = () => {
+          currentAudio.volume = volumeSlider.value;
+        };
+
+        // Initialize Volume settings
+        currentAudio.volume = volumeSlider.value;
+        
+        await currentAudio.play();
+
+      } catch (error) {
+        showToast('Playback error: ' + error.message, 'danger');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Listener Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-listener">Listener</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <button class="btn btn-secondary" onclick="performLogout()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Logout
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="flex-between mb-4">
+      <div>
+        <h1 style="margin-bottom: 0.2rem;">Music Discovery</h1>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Explore new music, listen to previews, and purchase your favorite tracks.</p>
+      </div>
+    </div>
+
+    <div class="grid-main-sidebar">
+      <!-- Catalog Section -->
+      <div class="card">
+        <div class="card-title">
+          <span>Track Catalog</span>
+          <button class="btn btn-secondary" onclick="loadCatalog()" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+            Refresh Catalog
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Genre</th>
+                <th>Artist ID</th>
+                <th>Price</th>
+                <th>Duration</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="catalog-list">
+              <tr>
+                <td colspan="6" class="no-data">Loading catalog...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Library Section -->
+      <div class="card">
+        <div class="card-title">
+          <span>My Purchased Library</span>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="library-list">
+              <tr>
+                <td colspan="2" class="no-data">Loading library...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Audio Player Bar (Fixed Bottom) -->
+  <div id="player-bar" class="player-bar">
+    <div class="player-container">
+      <div class="player-info">
+        <div id="player-track-title" class="player-title">Track Title</div>
+        <div id="player-track-artist" class="player-artist">Artist</div>
+      </div>
+      
+      <div class="player-controls">
+        <div class="control-buttons">
+          <button id="player-play-pause-btn" class="play-pause-btn">&#9654;</button>
+        </div>
+        <div class="player-timeline">
+          <span id="player-time-current" class="time-display">0:00</span>
+          <input type="range" id="player-timeline-slider" class="timeline-slider" min="0" max="100" value="0">
+          <span id="player-time-duration" class="time-display">0:00</span>
+        </div>
+      </div>
+
+      <div class="player-volume">
+        <span class="volume-icon">&#128266;</span>
+        <input type="range" id="player-volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.7">
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    // Validate authentication
+    const authUser = requireAuth(['LISTENER']);
+    if (authUser) {
+      document.getElementById('nav-username').textContent = authUser.username;
+    }
+
+    let librarySongIds = new Set();
+    let currentAudio = null;
+    let currentSongId = null;
+    let isPlaying = false;
+
+    // Load data on start
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadLibrary();
+      await loadCatalog();
+    });
+
+    async function loadLibrary() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/my-library`);
+        if (!response.ok) throw new Error('Failed to load library');
+        const data = await response.json();
+        
+        librarySongIds = new Set(data.map(song => song.id));
+        
+        const tbody = document.getElementById('library-list');
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="2" class="no-data">Your library is empty.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.map(song => `
+          <tr>
+            <td>
+              <div style="font-weight: 500;">${song.title}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${song.genre || 'No Genre'}</div>
+            </td>
+            <td>
+              <button class="btn btn-secondary" onclick="playPreview('${song.id}', '${song.title}', '${song.artistId}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+                Play
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+      } catch (error) {
+        showToast('Error loading library: ' + error.message, 'danger');
+        document.getElementById('library-list').innerHTML = `<tr><td colspan="2" class="no-data" style="color: var(--danger);">Failed to load library</td></tr>`;
+      }
+    }
+
+    async function loadCatalog() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/songs`);
+        if (!response.ok) throw new Error('Failed to load songs');
+        const data = await response.json();
+        
+        const tbody = document.getElementById('catalog-list');
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="no-data">No songs available in the catalog.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.map(song => {
+          const isPurchased = librarySongIds.has(song.id);
+          const buyButton = isPurchased 
+            ? `<span class="badge-status status-active">Purchased</span>`
+            : `<button class="btn btn-primary" onclick="buySong('${song.id}', '${song.title}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Buy</button>`;
+
+          return `
+            <tr>
+              <td><strong style="color: var(--text-main);">${song.title}</strong></td>
+              <td>${song.genre || '—'}</td>
+              <td style="font-size: 0.8rem; color: var(--text-muted); font-family: monospace;">${song.artistId.substring(0, 8)}...</td>
+              <td style="font-weight: 600; color: var(--accent-secondary);">${formatCurrency(song.price)} pts</td>
+              <td>${formatDuration(song.durationSeconds)}</td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button class="btn btn-secondary" onclick="playPreview('${song.id}', '${song.title}', '${song.artistId}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+                    Preview
+                  </button>
+                  ${buyButton}
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (error) {
+        showToast('Error loading catalog: ' + error.message, 'danger');
+        document.getElementById('catalog-list').innerHTML = `<tr><td colspan="6" class="no-data" style="color: var(--danger);">Failed to load catalog</td></tr>`;
+      }
+    }
+
+    async function buySong(songId, songTitle) {
+      if (!confirm(`Are you sure you want to purchase "${songTitle}"?`)) return;
+
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/purchase/${songId}`, {
+          method: 'POST'
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Purchase failed');
+        }
+
+        showToast(`Successfully purchased "${songTitle}"!`, 'success');
+        
+        // Refresh catalog and library
+        await loadLibrary();
+        await loadCatalog();
+
+      } catch (error) {
+        showToast(error.message, 'danger');
+      }
+    }
+
+    // Audio preview player controller function
+    async function playPreview(songId, songTitle, artistId) {
+      try {
+        if (currentSongId === songId && currentAudio) {
+          if (isPlaying) {
+            currentAudio.pause();
+          } else {
+            await currentAudio.play();
+          }
+          return;
+        }
+
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+        }
+
+        showToast(`Fetching preview for "${songTitle}"...`, 'info');
+
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/preview/${songId}`);
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+
+        currentAudio = new Audio(audioUrl);
+        currentSongId = songId;
+
+        // Display player bar
+        const playerBar = document.getElementById('player-bar');
+        playerBar.classList.add('active');
+        
+        document.getElementById('player-track-title').textContent = songTitle;
+        document.getElementById('player-track-artist').textContent = `Artist UUID: ${artistId.substring(0, 8)}...`;
+
+        const playPauseBtn = document.getElementById('player-play-pause-btn');
+        const timeline = document.getElementById('player-timeline-slider');
+        const timeCurrent = document.getElementById('player-time-current');
+        const timeDuration = document.getElementById('player-time-duration');
+        const volumeSlider = document.getElementById('player-volume-slider');
+
+        // Setup Player event listeners
+        currentAudio.addEventListener('play', () => {
+          isPlaying = true;
+          playPauseBtn.innerHTML = '&#9610;&#9610;'; // Pause icon
+        });
+
+        currentAudio.addEventListener('pause', () => {
+          isPlaying = false;
+          playPauseBtn.innerHTML = '&#9654;'; // Play icon
+        });
+
+        currentAudio.addEventListener('timeupdate', () => {
+          if (!currentAudio) return;
+          const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
+          timeline.value = progress || 0;
+          timeCurrent.textContent = formatDuration(currentAudio.currentTime);
+        });
+
+        currentAudio.addEventListener('loadedmetadata', () => {
+          timeDuration.textContent = formatDuration(currentAudio.duration);
+        });
+
+        currentAudio.addEventListener('ended', () => {
+          isPlaying = false;
+          playPauseBtn.innerHTML = '&#9654;';
+          timeline.value = 0;
+          timeCurrent.textContent = '0:00';
+        });
+
+        // Interface actions
+        playPauseBtn.onclick = () => {
+          if (isPlaying) currentAudio.pause();
+          else currentAudio.play();
+        };
+
+        timeline.oninput = () => {
+          const time = (timeline.value / 100) * currentAudio.duration;
+          currentAudio.currentTime = time;
+        };
+
+        volumeSlider.oninput = () => {
+          currentAudio.volume = volumeSlider.value;
+        };
+
+        // Initialize Volume settings
+        currentAudio.volume = volumeSlider.value;
+        
+        await currentAudio.play();
+
+      } catch (error) {
+        showToast('Playback error: ' + error.message, 'danger');
+      }
+    }
+  </script>
+</body>
+</html>
