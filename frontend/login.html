@@ -115,7 +115,14 @@
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || errorData.message || 'Login failed. Invalid credentials.');
+          let errMsg = errorData.error || errorData.message;
+          if (!errMsg) {
+            const values = Object.values(errorData);
+            if (values.length > 0) {
+              errMsg = values.join(', ');
+            }
+          }
+          throw new Error(errMsg || 'Login failed. Invalid credentials.');
         }
 
         const data = await response.json();
@@ -161,7 +168,14 @@
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || errorData.message || 'Registration failed.');
+          let errMsg = errorData.error || errorData.message;
+          if (!errMsg) {
+            const values = Object.values(errorData);
+            if (values.length > 0) {
+              errMsg = values.join(', ');
+            }
+          }
+          throw new Error(errMsg || 'Registration failed.');
         }
 
         showToast('Account created successfully! Please log in.', 'success');
