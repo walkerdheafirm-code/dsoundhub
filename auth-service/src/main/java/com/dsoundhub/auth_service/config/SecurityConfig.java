@@ -1,5 +1,6 @@
 package com.dsoundhub.auth_service.config;
 
+import com.dsoundhub.auth_service.security.InternalApiKeyFilter;
 import com.dsoundhub.auth_service.security.JwtFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,9 +23,11 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
+    private final InternalApiKeyFilter internalApiKeyFilter;
 
-    public SecurityConfig(JwtFilter jwtFilter) {
+    public SecurityConfig(JwtFilter jwtFilter, InternalApiKeyFilter internalApiKeyFilter) {
         this.jwtFilter = jwtFilter;
+        this.internalApiKeyFilter = internalApiKeyFilter;
     }
 
     @Bean
@@ -41,10 +44,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                 .requestMatchers("/api/auth/logout").authenticated()
-                .requestMatchers("/internal/validate-token").permitAll()
+                .requestMatchers("/internal/**").permitAll() // Akses dikontrol oleh InternalApiKeyFilter
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
