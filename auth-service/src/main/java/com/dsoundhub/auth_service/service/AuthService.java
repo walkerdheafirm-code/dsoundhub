@@ -1,10 +1,11 @@
 package com.dsoundhub.auth_service.service;
 
-import com.dsoundhub.auth_service.dto.LoginRequest;
-import com.dsoundhub.auth_service.dto.RegisterRequest;
-import com.dsoundhub.auth_service.dto.TokenResponse;
+import com.dsoundhub.auth_service.dto.*;
+import com.dsoundhub.auth_service.entity.OtpCode;
+import com.dsoundhub.auth_service.entity.OtpType;
 import com.dsoundhub.auth_service.entity.Role;
 import com.dsoundhub.auth_service.entity.User;
+import com.dsoundhub.auth_service.repository.OtpCodeRepository;
 import com.dsoundhub.auth_service.repository.UserRepository;
 import com.dsoundhub.auth_service.security.JwtProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Random;
 
 @Service
 public class AuthService {
@@ -20,13 +22,20 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final SessionService sessionService;
+    private final OtpCodeRepository otpCodeRepository;
+    private final EmailService emailService;
+
+    private final Random random = new Random();
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       JwtProvider jwtProvider, SessionService sessionService) {
+                       JwtProvider jwtProvider, SessionService sessionService,
+                       OtpCodeRepository otpCodeRepository, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
         this.sessionService = sessionService;
+        this.otpCodeRepository = otpCodeRepository;
+        this.emailService = emailService;
     }
 
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
@@ -39,6 +48,7 @@ public class AuthService {
             admin.setPasswordHash(passwordEncoder.encode("admin123"));
             admin.setRole(Role.ADMIN);
             admin.setIsBanned(false);
+            admin.setIsVerified(true);
             admin.setBalance(BigDecimal.ZERO);
             userRepository.save(admin);
             System.out.println("=================================================");
@@ -46,7 +56,6 @@ public class AuthService {
             System.out.println("=================================================");
         }
     }
-
 
     @Transactional
     public void register(RegisterRequest registerRequest) {
@@ -75,9 +84,12 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(registerRequest.password()));
         user.setRole(role);
         user.setIsBanned(false);
+        user.setIsVerified(false);
         user.setBalance(BigDecimal.ZERO);
 
         userRepository.save(user);
+
+        sendVerificationOtp(user.getEmail());
     }
 
     @Transactional(readOnly = true)
@@ -93,9 +105,12 @@ public class AuthService {
             throw new RuntimeException("Account suspended");
         }
 
+        if (!Boolean.TRUE.equals(user.getIsVerified())) {
+            throw new RuntimeException("Akun belum diverifikasi. Silakan cek email Anda atau klik 'Konfirmasi Akun'.");
+        }
+
         String token = jwtProvider.generateToken(user);
 
-        // Jika ADMIN, buat session Redis dan sertakan sessionId di response
         String sessionId = null;
         if (user.getRole() == Role.ADMIN) {
             sessionId = sessionService.createAdminSession(user.getId().toString());
@@ -104,13 +119,84 @@ public class AuthService {
         return new TokenResponse(token, user.getRole().name(), user.getUsername(), sessionId);
     }
 
-    /**
-     * Logout — hapus session Admin dari Redis.
-     * @param sessionId ID session admin yang akan dihapus
-     */
     public void logout(String sessionId) {
         if (sessionId != null && !sessionId.isBlank()) {
             sessionService.destroyAdminSession(sessionId);
         }
+    }
+
+    @Transactional
+    public void verifyOtp(VerifyOtpRequest request) {
+        OtpCode otp = otpCodeRepository
+                .findTopByEmailAndCodeAndTypeAndUsedFalseOrderByCreatedAtDesc(
+                        request.email(), request.code(), OtpType.VERIFICATION)
+                .orElseThrow(() -> new RuntimeException("Kode OTP tidak valid"));
+
+        if (otp.isExpired()) {
+            throw new RuntimeException("Kode OTP sudah kadaluwarsa. Silakan minta kode baru.");
+        }
+
+        otp.setUsed(true);
+        otpCodeRepository.save(otp);
+
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setIsVerified(true);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void resendOtp(ResendOtpRequest request) {
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new RuntimeException("Email tidak ditemukan"));
+
+        if (Boolean.TRUE.equals(user.getIsVerified())) {
+            throw new RuntimeException("Akun sudah terverifikasi");
+        }
+
+        sendVerificationOtp(request.email());
+    }
+
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request) {
+        if (userRepository.findByEmail(request.email()).isEmpty()) {
+            throw new RuntimeException("Email tidak ditemukan");
+        }
+
+        generateAndSendOtp(request.email(), OtpType.PASSWORD_RESET);
+    }
+
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        OtpCode otp = otpCodeRepository
+                .findTopByEmailAndCodeAndTypeAndUsedFalseOrderByCreatedAtDesc(
+                        request.email(), request.code(), OtpType.PASSWORD_RESET)
+                .orElseThrow(() -> new RuntimeException("Kode OTP tidak valid"));
+
+        if (otp.isExpired()) {
+            throw new RuntimeException("Kode OTP sudah kadaluwarsa");
+        }
+
+        otp.setUsed(true);
+        otpCodeRepository.save(otp);
+
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+    }
+
+    private void sendVerificationOtp(String email) {
+        otpCodeRepository.deleteByEmailAndType(email, OtpType.VERIFICATION);
+        generateAndSendOtp(email, OtpType.VERIFICATION);
+    }
+
+    private void generateAndSendOtp(String email, OtpType type) {
+        String code = String.format("%06d", random.nextInt(999999));
+        OtpCode otp = new OtpCode(email, code, type);
+        otpCodeRepository.save(otp);
+
+        String label = type == OtpType.VERIFICATION ? "Verifikasi" : "Reset Password";
+        emailService.sendOtp(email, code, label);
     }
 }

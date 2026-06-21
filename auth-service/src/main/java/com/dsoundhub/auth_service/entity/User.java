@@ -29,6 +29,9 @@ public class User {
     @Column(name = "is_banned", nullable = false)
     private Boolean isBanned = false;
 
+    @Column(name = "is_verified", nullable = false)
+    private Boolean isVerified = false;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
@@ -106,6 +109,14 @@ public class User {
 
     public void setIsBanned(Boolean banned) {
         isBanned = banned;
+    }
+
+    public Boolean getIsVerified() {
+        return isVerified;
+    }
+
+    public void setIsVerified(Boolean verified) {
+        isVerified = verified;
     }
 
     public BigDecimal getBalance() {

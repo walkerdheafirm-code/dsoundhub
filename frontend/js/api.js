@@ -1,5 +1,6 @@
-const AUTH_SERVICE_URL = 'http://localhost:8081';
-const AUDIO_SERVICE_URL = 'http://localhost:8082';
+const GATEWAY_URL = 'http://localhost:8080';
+const AUTH_SERVICE_URL = GATEWAY_URL;
+const AUDIO_SERVICE_URL = GATEWAY_URL;
 
 // LocalStorage Helpers
 function getToken() {

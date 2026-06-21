@@ -1,8 +1,6 @@
 package com.dsoundhub.auth_service.controller;
 
-import com.dsoundhub.auth_service.dto.LoginRequest;
-import com.dsoundhub.auth_service.dto.RegisterRequest;
-import com.dsoundhub.auth_service.dto.TokenResponse;
+import com.dsoundhub.auth_service.dto.*;
 import com.dsoundhub.auth_service.security.JwtProvider;
 import com.dsoundhub.auth_service.service.AuthService;
 import io.jsonwebtoken.Claims;
@@ -28,8 +26,9 @@ public class AuthController {
     @PostMapping("/api/auth/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
         authService.register(registerRequest);
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "User registered successfully");
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Registrasi berhasil! Silakan cek email untuk kode OTP.");
+        response.put("email", registerRequest.email());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -44,6 +43,38 @@ public class AuthController {
         authService.logout(sessionId);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Logged out successfully");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/api/auth/verify-otp")
+    public ResponseEntity<?> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        authService.verifyOtp(request);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Akun berhasil diverifikasi! Silakan login.");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/api/auth/resend-otp")
+    public ResponseEntity<?> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
+        authService.resendOtp(request);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Kode OTP baru telah dikirim ke email Anda.");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/api/auth/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Kode OTP reset password telah dikirim ke email Anda.");
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/api/auth/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Password berhasil direset! Silakan login dengan password baru.");
         return ResponseEntity.ok(response);
     }
 

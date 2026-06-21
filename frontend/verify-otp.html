@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Verifikasi OTP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container login-wrapper">
+    <div class="card login-card" style="max-width: 440px;">
+      <div class="text-center mb-4">
+        <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem;">
+          <span class="brand-icon">D</span> D'SoundHub
+        </h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Verifikasi Akun</p>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.25rem;">Masukkan kode OTP yang dikirim ke:</p>
+        <p id="otp-email-display" style="font-weight: 600; color: var(--accent-secondary); font-size: 0.95rem;">email@example.com</p>
+      </div>
+
+      <form id="otp-form" onsubmit="handleVerifyOtp(event)">
+        <div class="form-group">
+          <label>Kode OTP</label>
+          <div style="display: flex; gap: 8px; justify-content: center; margin: 0.5rem 0 1rem;">
+            <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" autofocus
+                   oninput="moveNext(this, 0)" onkeydown="moveBack(this, 0)" style="width: 48px; height: 56px; text-align: center; font-size: 1.5rem; font-weight: 700; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); outline: none;">
+            <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]"
+                   oninput="moveNext(this, 1)" onkeydown="moveBack(this, 1)" style="width: 48px; height: 56px; text-align: center; font-size: 1.5rem; font-weight: 700; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); outline: none;">
+            <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]"
+                   oninput="moveNext(this, 2)" onkeydown="moveBack(this, 2)" style="width: 48px; height: 56px; text-align: center; font-size: 1.5rem; font-weight: 700; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); outline: none;">
+            <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]"
+                   oninput="moveNext(this, 3)" onkeydown="moveBack(this, 3)" style="width: 48px; height: 56px; text-align: center; font-size: 1.5rem; font-weight: 700; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); outline: none;">
+            <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]"
+                   oninput="moveNext(this, 4)" onkeydown="moveBack(this, 4)" style="width: 48px; height: 56px; text-align: center; font-size: 1.5rem; font-weight: 700; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); outline: none;">
+            <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]"
+                   oninput="moveNext(this, 5)" onkeydown="moveBack(this, 5)" style="width: 48px; height: 56px; text-align: center; font-size: 1.5rem; font-weight: 700; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main); outline: none;">
+          </div>
+          <input type="hidden" id="otp-email" value="">
+          <input type="hidden" id="otp-code" value="">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="verify-btn">
+          Verifikasi
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 1.25rem;">
+        <button class="btn btn-secondary" onclick="handleResendOtp()" id="resend-btn" style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">
+          Kirim Ulang OTP
+        </button>
+        <p id="resend-timer" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem; display: none;"></p>
+      </div>
+
+      <div style="text-align: center; margin-top: 1rem;">
+        <a href="login.html" style="font-size: 0.85rem; color: var(--accent-secondary);">Kembali ke Login</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    const emailParam = new URLSearchParams(window.location.search).get('email');
+    if (emailParam) {
+      document.getElementById('otp-email').value = emailParam;
+      document.getElementById('otp-email-display').textContent = emailParam;
+    } else {
+      // Show email input if no param
+      const displayEl = document.getElementById('otp-email-display');
+      displayEl.innerHTML = `<input type="email" id="manual-email" class="form-control" placeholder="Masukkan email Anda" style="margin-top: 0.5rem; text-align: center;" required>`;
+      document.getElementById('otp-email').value = '';
+    }
+
+    let resendCooldown = 0;
+
+    function moveNext(input, index) {
+      if (input.value.length === 1 && index < 5) {
+        document.querySelectorAll('.otp-input')[index + 1].focus();
+      }
+      updateOtpCode();
+    }
+
+    function moveBack(input, index) {
+      if (event.key === 'Backspace' && input.value.length === 0 && index > 0) {
+        document.querySelectorAll('.otp-input')[index - 1].focus();
+      }
+    }
+
+    function updateOtpCode() {
+      const inputs = document.querySelectorAll('.otp-input');
+      const code = Array.from(inputs).map(i => i.value).join('');
+      document.getElementById('otp-code').value = code;
+    }
+
+    async function handleVerifyOtp(e) {
+      e.preventDefault();
+      let emailVal = document.getElementById('otp-email').value;
+      if (!emailVal) {
+        emailVal = document.getElementById('manual-email')?.value?.trim();
+      }
+      const code = document.getElementById('otp-code').value;
+
+      if (!emailVal) {
+        showToast('Masukkan email Anda', 'warning');
+        return;
+      }
+      if (code.length !== 6) {
+        showToast('Masukkan 6 digit kode OTP', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('verify-btn');
+      btn.disabled = true;
+      btn.textContent = 'Memverifikasi...';
+
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailVal, code })
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.message || 'Verifikasi gagal');
+        }
+
+        showToast('Akun berhasil diverifikasi! Silakan login.', 'success');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1500);
+
+      } catch (error) {
+        showToast(error.message, 'danger');
+        btn.disabled = false;
+        btn.textContent = 'Verifikasi';
+      }
+    }
+
+    async function handleResendOtp() {
+      if (resendCooldown > 0) return;
+
+      let emailVal = document.getElementById('otp-email').value;
+      if (!emailVal) {
+        emailVal = document.getElementById('manual-email')?.value?.trim();
+      }
+      if (!emailVal) {
+        showToast('Masukkan email Anda', 'danger');
+        return;
+      }
+
+      const btn = document.getElementById('resend-btn');
+      btn.disabled = true;
+      btn.textContent = 'Mengirim...';
+
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/resend-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailVal })
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.message || 'Gagal mengirim ulang');
+        }
+
+        showToast('Kode OTP baru telah dikirim!', 'success');
+
+        // Cooldown 30 detik
+        resendCooldown = 30;
+        const timerEl = document.getElementById('resend-timer');
+        timerEl.style.display = 'block';
+        btn.textContent = 'Kirim Ulang OTP';
+
+        const interval = setInterval(() => {
+          resendCooldown--;
+          timerEl.textContent = `Kirim ulang dalam ${resendCooldown} detik`;
+          if (resendCooldown <= 0) {
+            clearInterval(interval);
+            timerEl.style.display = 'none';
+            btn.disabled = false;
+          }
+        }, 1000);
+
+      } catch (error) {
+        showToast(error.message, 'danger');
+        btn.disabled = false;
+        btn.textContent = 'Kirim Ulang OTP';
+      }
+    }
+  </script>
+</body>
+</html>
