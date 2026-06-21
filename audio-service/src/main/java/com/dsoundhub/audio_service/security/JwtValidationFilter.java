@@ -86,6 +86,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(
                                     userId, null,
                                     Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)));
+                    authentication.setDetails(userId);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 } else {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

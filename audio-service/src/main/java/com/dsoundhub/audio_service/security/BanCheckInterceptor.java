@@ -1,41 +1,26 @@
 package com.dsoundhub.audio_service.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Interceptor yang memeriksa apakah user yang sedang mengakses audio-service
- * telah di-ban oleh Admin.
- *
- * Alur:
- *   1. Setelah JwtValidationFilter berhasil mengautentikasi user,
- *      interceptor ini berjalan sebelum request masuk ke controller.
- *   2. Membaca userId dari Authentication principal (disimpan oleh JWT filter).
- *   3. Memeriksa Redis key "user:ban:{userId}".
- *   4. Jika key ada (bernilai "true"), request ditolak dengan HTTP 403 "Account suspended".
- *   5. Jika tidak ada, request dilanjutkan ke controller.
- *
- * Ini memungkinkan ban berlaku real-time tanpa menunggu JWT expired.
- */
 @Component
 public class BanCheckInterceptor implements HandlerInterceptor {
 
-    private static final String USER_BAN_PREFIX = "user:ban:";
-    private final StringRedisTemplate redisTemplate;
+    private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
-    public BanCheckInterceptor(StringRedisTemplate redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public BanCheckInterceptor(DataSource dataSource) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
         this.objectMapper = new ObjectMapper();
     }
 
@@ -45,24 +30,25 @@ public class BanCheckInterceptor implements HandlerInterceptor {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // Jika tidak ada authentication (endpoint public), lewati
         if (authentication == null || !authentication.isAuthenticated()
                 || "anonymousUser".equals(authentication.getPrincipal())) {
             return true;
         }
 
-        // Ambil userId dari authentication details (di-set oleh JwtValidationFilter)
-        Object userIdObj = authentication.getDetails();
+        Object userIdObj = authentication.getPrincipal();
         if (userIdObj == null) {
             return true;
         }
 
         String userId = userIdObj.toString();
-        String banKey = USER_BAN_PREFIX + userId;
 
-        // Cek Redis: apakah user di-ban?
-        String banValue = redisTemplate.opsForValue().get(banKey);
-        if ("true".equals(banValue)) {
+        Boolean banned = jdbcTemplate.queryForObject(
+            "SELECT is_banned FROM users WHERE id = ?::uuid",
+            Boolean.class,
+            userId
+        );
+
+        if (Boolean.TRUE.equals(banned)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
 
@@ -72,9 +58,9 @@ public class BanCheckInterceptor implements HandlerInterceptor {
             errorBody.put("status", 403);
 
             response.getWriter().write(objectMapper.writeValueAsString(errorBody));
-            return false; // Hentikan request
+            return false;
         }
 
-        return true; // User tidak di-ban, lanjutkan
+        return true;
     }
 }

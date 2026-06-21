@@ -8,19 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Service untuk operasi manajemen user oleh Admin.
- * Menyediakan: list users, ban, unban — dengan sinkronisasi ke Redis dan DB.
- */
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
-    private final SessionService sessionService;
 
-    public UserService(UserRepository userRepository, SessionService sessionService) {
+    public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.sessionService = sessionService;
     }
 
     /**
@@ -53,9 +47,6 @@ public class UserService {
         user.setIsBanned(true);
         userRepository.save(user);
 
-        // Tulis flag ban ke Redis untuk real-time check oleh audio-service
-        sessionService.banUser(userId.toString());
-
         return user;
     }
 
@@ -76,9 +67,6 @@ public class UserService {
         // Update database
         user.setIsBanned(false);
         userRepository.save(user);
-
-        // Hapus flag ban dari Redis
-        sessionService.unbanUser(userId.toString());
 
         return user;
     }
