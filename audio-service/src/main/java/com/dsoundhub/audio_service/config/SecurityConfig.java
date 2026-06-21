@@ -3,6 +3,7 @@ package com.dsoundhub.audio_service.config;
 import com.dsoundhub.audio_service.security.JwtValidationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,6 +24,7 @@ import java.util.List;
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtValidationFilter jwtValidationFilter;
@@ -44,6 +46,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/audio/my-library").hasRole("LISTENER")
                 .requestMatchers("/api/royalties/my").hasRole("ARTIST")
                 .requestMatchers("/api/royalties/summary").hasRole("ADMIN")
+                .requestMatchers("/api/withdraw/**").hasRole("ARTIST")
                 .requestMatchers("/api/audio/songs", "/api/audio/preview/**").authenticated()
                 .anyRequest().authenticated()
             )

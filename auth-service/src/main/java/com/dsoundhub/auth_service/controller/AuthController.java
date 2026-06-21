@@ -7,8 +7,10 @@ import io.jsonwebtoken.Claims;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -75,6 +77,25 @@ public class AuthController {
         authService.resetPassword(request);
         Map<String, String> response = new HashMap<>();
         response.put("message", "Password berhasil direset! Silakan login dengan password baru.");
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/auth/balance")
+    public ResponseEntity<?> getBalance(@AuthenticationPrincipal String username) {
+        BigDecimal balance = authService.getBalance(username);
+        Map<String, Object> response = new HashMap<>();
+        response.put("balance", balance);
+        response.put("username", username);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/api/auth/top-up")
+    public ResponseEntity<?> topUp(@AuthenticationPrincipal String username,
+                                    @Valid @RequestBody TopUpRequest request) {
+        BigDecimal newBalance = authService.topUp(username, request.amount());
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Top-up berhasil!");
+        response.put("balance", newBalance);
         return ResponseEntity.ok(response);
     }
 

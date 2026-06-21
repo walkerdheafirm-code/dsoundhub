@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Confirm Purchase</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-listener">Listener</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <div class="user-badge" id="balance-badge" style="gap: 0.25rem;">
+          <span>Balance:</span>
+          <span id="nav-balance" style="font-weight: 700; color: var(--accent-secondary);">0 pts</span>
+        </div>
+        <button class="btn btn-secondary" onclick="goToTopUp()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Top Up
+        </button>
+        <button class="btn btn-secondary" onclick="goBackToDashboard()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Back
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="login-wrapper">
+      <div class="card login-card">
+        <h1 class="text-center" style="margin-bottom: 1.5rem;">Confirm Purchase</h1>
+
+        <div id="song-info" style="margin-bottom: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+            <span style="color: var(--text-muted);">Track</span>
+            <span id="song-title" style="font-weight: 600;">—</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+            <span style="color: var(--text-muted);">Price</span>
+            <span id="song-price" style="font-weight: 700; color: var(--accent-secondary);">0 pts</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+            <span style="color: var(--text-muted);">Your Balance</span>
+            <span id="your-balance" style="font-weight: 700;">0 pts</span>
+          </div>
+          <div id="status-row" style="display: flex; justify-content: space-between; padding: 0.75rem 0;">
+            <span style="color: var(--text-muted);">Status</span>
+            <span id="status-text" style="font-weight: 700;">Checking...</span>
+          </div>
+        </div>
+
+        <div id="action-area" class="text-center" style="margin-top: 1rem;">
+          <button id="btn-confirm" class="btn btn-primary btn-block" onclick="confirmPurchase()" style="display: none;">
+            Confirm Purchase
+          </button>
+          <button id="btn-topup" class="btn btn-success btn-block" onclick="goToTopUp()" style="display: none;">
+            Top Up Sekarang
+          </button>
+          <p id="error-message" style="color: var(--danger); display: none; margin-top: 1rem;"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const authUser = requireAuth(['LISTENER']);
+    if (!authUser) throw new Error('Not authenticated');
+
+    document.getElementById('nav-username').textContent = authUser.username;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const songId = urlParams.get('songId');
+    const songTitle = urlParams.get('title');
+    const songPrice = parseFloat(urlParams.get('price') || '0');
+
+    if (!songId) {
+      document.getElementById('status-text').textContent = 'Invalid request';
+      document.getElementById('error-message').textContent = 'No song specified.';
+      document.getElementById('error-message').style.display = 'block';
+    } else {
+      document.getElementById('song-title').textContent = songTitle || 'Unknown Track';
+      document.getElementById('song-price').textContent = formatCurrency(songPrice) + ' pts';
+      loadBalance();
+    }
+
+    async function loadBalance() {
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/balance`);
+        if (!response.ok) throw new Error('Failed to fetch balance');
+        const data = await response.json();
+        const balance = parseFloat(data.balance || 0);
+
+        document.getElementById('your-balance').textContent = formatCurrency(balance) + ' pts';
+        document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
+
+        if (balance >= songPrice) {
+          document.getElementById('status-text').textContent = '\u2705 Saldo mencukupi';
+          document.getElementById('status-text').style.color = 'var(--success)';
+          document.getElementById('btn-confirm').style.display = 'flex';
+        } else {
+          const deficit = songPrice - balance;
+          document.getElementById('status-text').textContent = '\u274c Saldo tidak mencukupi';
+          document.getElementById('status-text').style.color = 'var(--danger)';
+          document.getElementById('error-message').textContent = `Kekurangan ${formatCurrency(deficit)} pts. Silakan top-up terlebih dahulu.`;
+          document.getElementById('error-message').style.display = 'block';
+          document.getElementById('btn-topup').style.display = 'flex';
+        }
+      } catch (error) {
+        document.getElementById('status-text').textContent = 'Error';
+        document.getElementById('error-message').textContent = error.message;
+        document.getElementById('error-message').style.display = 'block';
+      }
+    }
+
+    async function confirmPurchase() {
+      const btn = document.getElementById('btn-confirm');
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/purchase/${songId}`, {
+          method: 'POST'
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Purchase failed');
+        }
+
+        showToast(`Successfully purchased "${songTitle}"!`, 'success');
+        setTimeout(() => {
+          window.location.href = 'dashboard-listener.html';
+        }, 1500);
+      } catch (error) {
+        showToast(error.message, 'danger');
+        btn.disabled = false;
+        btn.textContent = 'Confirm Purchase';
+      }
+    }
+
+    function goToTopUp() {
+      const returnUrl = encodeURIComponent(window.location.href);
+      window.location.href = `topup.html?returnUrl=${returnUrl}`;
+    }
+
+    function goBackToDashboard() {
+      window.location.href = 'dashboard-listener.html';
+    }
+  </script>
+</body>
+</html>

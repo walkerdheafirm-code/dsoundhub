@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Upload Track</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-artist">Artist</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <div class="user-badge" id="balance-badge" style="gap: 0.25rem;">
+          <span>Balance:</span>
+          <span id="nav-balance" style="font-weight: 700; color: var(--accent-secondary);">0 pts</span>
+        </div>
+        <button class="btn btn-secondary" onclick="window.location.href='withdraw.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Withdraw
+        </button>
+        <button class="btn btn-secondary" onclick="window.location.href='dashboard-artist.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Dashboard
+        </button>
+        <button class="btn btn-secondary" onclick="performLogout()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Logout
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="login-wrapper">
+      <div class="card login-card">
+        <h1 class="text-center" style="margin-bottom: 0.5rem;">Upload New Track</h1>
+        <p class="text-center" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+          Publish a new song to the D'SoundHub catalog.
+        </p>
+
+        <form id="upload-form" onsubmit="handleUpload(event)">
+          <div class="form-group">
+            <label for="upload-title">Track Title</label>
+            <input type="text" id="upload-title" class="form-control" placeholder="Enter track title" required>
+          </div>
+          <div class="form-group">
+            <label for="upload-genre">Genre</label>
+            <input type="text" id="upload-genre" class="form-control" placeholder="e.g. Pop, Rock, Electronic">
+          </div>
+          <div class="form-group">
+            <label for="upload-price">Price (Points)</label>
+            <input type="number" id="upload-price" class="form-control" min="0" step="0.5" placeholder="e.g. 5.0" required>
+          </div>
+          <div class="form-group">
+            <label for="upload-duration">Duration (Seconds)</label>
+            <input type="number" id="upload-duration" class="form-control" min="1" placeholder="e.g. 180" required>
+          </div>
+
+          <div class="form-group">
+            <label>Audio File (MP3/WAV)</label>
+            <div id="drop-zone" class="file-drop-zone" onclick="document.getElementById('upload-file').click()">
+              <span class="icon">📁</span>
+              <p id="drop-zone-text">Drag & drop your audio file here, or click to browse</p>
+              <input type="file" id="upload-file" accept="audio/mpeg, audio/wav, audio/mp3" style="display: none;" onchange="handleFileSelect(this)">
+            </div>
+            <div id="file-info" style="display: none; font-size: 0.8rem; color: var(--accent-secondary); margin-bottom: 1rem;">
+              Selected: <span id="file-info-name">filename.mp3</span> (<span id="file-info-size">0 MB</span>)
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block" id="upload-btn">
+            Publish Track
+          </button>
+        </form>
+
+        <div id="success-area" style="display: none; margin-top: 1rem; text-align: center;">
+          <div style="font-size: 1.2rem; font-weight: 700; color: var(--success); margin-bottom: 0.5rem;">
+            Track Published!
+          </div>
+          <p id="success-message" style="color: var(--text-muted);"></p>
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+            <button class="btn btn-primary btn-block" onclick="window.location.href='upload-track.html'" style="flex: 1;">
+              Upload Another
+            </button>
+            <button class="btn btn-secondary btn-block" onclick="window.location.href='dashboard-artist.html'" style="flex: 1;">
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const authUser = requireAuth(['ARTIST']);
+    if (authUser) {
+      document.getElementById('nav-username').textContent = authUser.username;
+    }
+
+    let selectedFile = null;
+
+    window.addEventListener('DOMContentLoaded', loadBalance);
+
+    async function loadBalance() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw/balance`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const balance = parseFloat(data.balance || 0);
+        document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
+      } catch (e) { console.warn('Balance load failed'); }
+    }
+
+    const dropZone = document.getElementById('drop-zone');
+    ['dragenter', 'dragover'].forEach(ev => {
+      dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); }, false);
+    });
+    ['dragleave', 'drop'].forEach(ev => {
+      dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('dragover'); }, false);
+    });
+    dropZone.addEventListener('drop', e => {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        document.getElementById('upload-file').files = files;
+        handleFileSelect(document.getElementById('upload-file'));
+      }
+    });
+
+    function handleFileSelect(input) {
+      if (input.files && input.files[0]) {
+        selectedFile = input.files[0];
+        document.getElementById('file-info-name').textContent = selectedFile.name;
+        document.getElementById('file-info-size').textContent = (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB';
+        document.getElementById('file-info').style.display = 'block';
+        document.getElementById('drop-zone-text').textContent = 'File selected. Ready to upload.';
+      } else {
+        selectedFile = null;
+        document.getElementById('file-info').style.display = 'none';
+        document.getElementById('drop-zone-text').textContent = 'Drag & drop your audio file here, or click to browse';
+      }
+    }
+
+    async function handleUpload(e) {
+      e.preventDefault();
+      if (!selectedFile) {
+        showToast('Please select or drag an audio file (MP3/WAV)', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('upload-btn');
+      btn.disabled = true;
+      btn.textContent = 'Publishing Track...';
+
+      try {
+        const title = document.getElementById('upload-title').value.trim();
+        const genre = document.getElementById('upload-genre').value.trim();
+        const price = parseFloat(document.getElementById('upload-price').value);
+        const durationSeconds = parseInt(document.getElementById('upload-duration').value);
+
+        const formData = new FormData();
+        const metadata = { title, genre, price, durationSeconds };
+        const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+        formData.append('metadata', metadataBlob);
+        formData.append('file', selectedFile);
+
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to upload song');
+        }
+
+        document.getElementById('upload-form').style.display = 'none';
+        document.getElementById('success-area').style.display = 'block';
+        document.getElementById('success-message').textContent = `"${title}" has been published to the catalog!`;
+        showToast('Track published successfully!', 'success');
+      } catch (error) {
+        showToast(error.message, 'danger');
+        btn.disabled = false;
+        btn.textContent = 'Publish Track';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Withdraw</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .history-table {
+      margin-top: 2rem;
+    }
+    .history-table .badge-status {
+      font-size: 0.7rem;
+    }
+    .quick-amounts {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .quick-amounts button {
+      flex: 1;
+      min-width: 60px;
+    }
+    .info-box {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-artist">Artist</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <div class="user-badge" id="balance-badge" style="gap: 0.25rem;">
+          <span>Balance:</span>
+          <span id="nav-balance" style="font-weight: 700; color: var(--accent-secondary);">0 pts</span>
+        </div>
+        <button class="btn btn-secondary" onclick="window.location.href='upload-track.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          + Upload
+        </button>
+        <button class="btn btn-secondary" onclick="window.location.href='dashboard-artist.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Dashboard
+        </button>
+        <button class="btn btn-secondary" onclick="performLogout()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Logout
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="login-wrapper" style="flex-direction: column;">
+      <!-- Withdraw Form Card -->
+      <div class="card login-card">
+        <h1 class="text-center" style="margin-bottom: 0.5rem;">Withdraw Balance</h1>
+        <p class="text-center" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+          Tarik saldo royalti yang sudah masuk ke akun Anda.
+        </p>
+
+        <div id="current-balance" style="text-align: center; margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color);">
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Available Balance</span>
+          <div style="font-size: 2rem; font-weight: 700; color: var(--accent-secondary); margin-top: 0.25rem;">
+            <span id="display-balance">0</span> pts
+          </div>
+        </div>
+
+        <div class="info-box">
+          &#8505; Minimal penarikan: <strong>20.000 pts</strong>
+        </div>
+
+        <form id="withdraw-form" onsubmit="handleWithdraw(event)">
+          <div class="form-group">
+            <label for="amount">Withdrawal Amount (pts)</label>
+            <input type="number" id="amount" class="form-control" min="1" step="1" placeholder="Enter amount to withdraw" required>
+          </div>
+
+          <div class="quick-amounts">
+            <button type="button" class="btn btn-secondary" onclick="setAmount(20000)" style="padding: 0.5rem;">20.000</button>
+            <button type="button" class="btn btn-secondary" onclick="setAmount(50000)" style="padding: 0.5rem;">50.000</button>
+            <button type="button" class="btn btn-secondary" onclick="setAmount(100000)" style="padding: 0.5rem;">100.000</button>
+            <button type="button" class="btn btn-secondary" onclick="setAmount(200000)" style="padding: 0.5rem;">200.000</button>
+          </div>
+
+          <button type="submit" id="btn-submit" class="btn btn-primary btn-block">
+            Withdraw
+          </button>
+        </form>
+
+        <div id="result-area" style="display: none; margin-top: 1rem; text-align: center;">
+          <div style="font-size: 1.2rem; font-weight: 700; color: var(--success); margin-bottom: 0.5rem;">
+            Penarikan Berhasil!
+          </div>
+          <p id="result-message" style="color: var(--text-muted);"></p>
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+            <button class="btn btn-primary btn-block" onclick="location.reload()" style="flex: 1;">
+              Withdraw Lagi
+            </button>
+            <button class="btn btn-secondary btn-block" onclick="window.location.href='dashboard-artist.html'" style="flex: 1;">
+              Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Withdrawal History -->
+      <div class="card login-card history-table">
+        <div class="card-title">
+          <span>Withdrawal History</span>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="history-list">
+              <tr><td colspan="3" class="no-data">Loading history...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const authUser = requireAuth(['ARTIST']);
+    if (authUser) {
+      document.getElementById('nav-username').textContent = authUser.username;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadBalance();
+      await loadHistory();
+    });
+
+    async function loadBalance() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw/balance`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const balance = parseFloat(data.balance || 0);
+        document.getElementById('display-balance').textContent = formatCurrency(balance);
+        document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
+      } catch (e) { console.warn('Balance load failed'); }
+    }
+
+    async function loadHistory() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw/history`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const tbody = document.getElementById('history-list');
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="3" class="no-data">No withdrawals yet.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = data.map(w => `
+          <tr>
+            <td style="font-size: 0.85rem; color: var(--text-muted);">${new Date(w.createdAt).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+            <td style="font-weight: 700; color: var(--danger);">-${formatCurrency(w.amount)} pts</td>
+            <td><span class="badge-status status-active">${w.status}</span></td>
+          </tr>
+        `).join('');
+      } catch (e) { console.warn('History load failed'); }
+    }
+
+    function setAmount(value) {
+      document.getElementById('amount').value = value;
+    }
+
+    async function handleWithdraw(e) {
+      e.preventDefault();
+      const amountInput = document.getElementById('amount');
+      const amount = parseInt(amountInput.value);
+
+      if (!amount || amount < 1) {
+        showToast('Masukkan jumlah penarikan yang valid', 'danger');
+        return;
+      }
+
+      if (amount < 20000) {
+        showToast('Minimal penarikan adalah 20.000 pts', 'danger');
+        return;
+      }
+
+      const btn = document.getElementById('btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Withdrawal failed');
+        }
+
+        const data = await response.json();
+        const newBalance = parseFloat(data.balance || 0);
+
+        document.getElementById('withdraw-form').style.display = 'none';
+        document.getElementById('result-area').style.display = 'block';
+        document.getElementById('result-message').textContent =
+          `Berhasil menarik ${formatCurrency(amount)} pts. Saldo Anda sekarang ${formatCurrency(newBalance)} pts. Cek email untuk notifikasi.`;
+        document.getElementById('display-balance').textContent = formatCurrency(newBalance);
+        document.getElementById('nav-balance').textContent = formatCurrency(newBalance) + ' pts';
+
+        showToast(`Penarikan ${formatCurrency(amount)} pts berhasil!`, 'success');
+        loadHistory();
+      } catch (error) {
+        showToast(error.message, 'danger');
+        btn.disabled = false;
+        btn.textContent = 'Withdraw';
+      }
+    }
+  </script>
+</body>
+</html>

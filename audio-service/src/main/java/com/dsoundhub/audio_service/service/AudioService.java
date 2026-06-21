@@ -5,28 +5,33 @@ import com.dsoundhub.audio_service.dto.SongResponse;
 import com.dsoundhub.audio_service.entity.Song;
 import com.dsoundhub.audio_service.repository.SongRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class AudioService {
 
     private final SongRepository songRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     @Value("${app.upload.dir}")
     private String uploadDir;
 
-    public AudioService(SongRepository songRepository) {
+    public AudioService(SongRepository songRepository, DataSource dataSource) {
         this.songRepository = songRepository;
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
     }
 
     @Transactional
@@ -80,6 +85,12 @@ public class AudioService {
         Song song = getSongById(songId);
         song.setTotalPlays(song.getTotalPlays() + 1);
         songRepository.save(song);
+    }
+
+    public List<Map<String, Object>> getArtists() {
+        return jdbcTemplate.queryForList(
+                "SELECT id, username FROM users WHERE role = 'ARTIST' ORDER BY username ASC"
+        );
     }
 
     private SongResponse toResponse(Song song) {

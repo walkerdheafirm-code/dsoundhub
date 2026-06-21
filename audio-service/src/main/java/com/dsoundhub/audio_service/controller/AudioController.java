@@ -54,6 +54,11 @@ public class AudioController {
         return ResponseEntity.ok(audioService.getAllSongs());
     }
 
+    @GetMapping("/artists")
+    public ResponseEntity<List<Map<String, Object>>> getArtists() {
+        return ResponseEntity.ok(audioService.getArtists());
+    }
+
     @GetMapping("/my-songs")
     @PreAuthorize("hasRole('ARTIST')")
     public ResponseEntity<List<SongResponse>> getMySongs(

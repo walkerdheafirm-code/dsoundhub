@@ -186,6 +186,21 @@ public class AuthService {
         userRepository.save(user);
     }
 
+    public BigDecimal getBalance(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return user.getBalance() != null ? user.getBalance() : BigDecimal.ZERO;
+    }
+
+    @Transactional
+    public BigDecimal topUp(String username, BigDecimal amount) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setBalance(user.getBalance().add(amount));
+        userRepository.save(user);
+        return user.getBalance();
+    }
+
     private void sendVerificationOtp(String email) {
         otpCodeRepository.deleteByEmailAndType(email, OtpType.VERIFICATION);
         generateAndSendOtp(email, OtpType.VERIFICATION);

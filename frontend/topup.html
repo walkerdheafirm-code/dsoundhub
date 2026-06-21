@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — Top Up Balance</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-listener">Listener</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <div class="user-badge" id="balance-badge" style="gap: 0.25rem;">
+          <span>Balance:</span>
+          <span id="nav-balance" style="font-weight: 700; color: var(--accent-secondary);">0 pts</span>
+        </div>
+        <button class="btn btn-secondary" onclick="goBack()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Back
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="login-wrapper">
+      <div class="card login-card">
+        <h1 class="text-center" style="margin-bottom: 0.5rem;">Top Up Balance</h1>
+        <p class="text-center" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+          Add virtual points to your account to purchase songs.
+        </p>
+
+        <div id="current-balance" style="text-align: center; margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color);">
+          <span style="color: var(--text-muted); font-size: 0.85rem;">Current Balance</span>
+          <div style="font-size: 2rem; font-weight: 700; color: var(--accent-secondary); margin-top: 0.25rem;">
+            <span id="display-balance">0</span> pts
+          </div>
+        </div>
+
+        <form id="topup-form" onsubmit="handleTopUp(event)">
+          <div class="form-group">
+            <label for="amount">Amount (pts)</label>
+            <input type="number" id="amount" class="form-control" 
+                   min="1" step="1" value="10" required
+                   placeholder="Enter amount to add">
+          </div>
+
+          <div style="display: flex; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary" onclick="setAmount(10)" style="flex: 1; padding: 0.5rem;">+10</button>
+            <button type="button" class="btn btn-secondary" onclick="setAmount(50)" style="flex: 1; padding: 0.5rem;">+50</button>
+            <button type="button" class="btn btn-secondary" onclick="setAmount(100)" style="flex: 1; padding: 0.5rem;">+100</button>
+            <button type="button" class="btn btn-secondary" onclick="setAmount(500)" style="flex: 1; padding: 0.5rem;">+500</button>
+          </div>
+
+          <button type="submit" id="btn-submit" class="btn btn-success btn-block mt-4">
+            Top Up
+          </button>
+        </form>
+
+        <div id="result-area" style="display: none; margin-top: 1rem; text-align: center;">
+          <div style="font-size: 1.2rem; font-weight: 700; color: var(--success); margin-bottom: 0.5rem;">
+            Top-Up Berhasil!
+          </div>
+          <p id="result-message" style="color: var(--text-muted);"></p>
+          <button class="btn btn-primary btn-block mt-4" onclick="goBack()">
+            Kembali
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script>
+    const authUser = requireAuth(['LISTENER']);
+    if (!authUser) throw new Error('Not authenticated');
+
+    document.getElementById('nav-username').textContent = authUser.username;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const returnUrl = urlParams.get('returnUrl');
+
+    loadBalance();
+
+    async function loadBalance() {
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/balance`);
+        if (!response.ok) throw new Error('Failed to fetch balance');
+        const data = await response.json();
+        const balance = parseFloat(data.balance || 0);
+        document.getElementById('display-balance').textContent = formatCurrency(balance);
+        document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
+      } catch (error) {
+        showToast('Error loading balance: ' + error.message, 'danger');
+      }
+    }
+
+    function setAmount(value) {
+      document.getElementById('amount').value = value;
+    }
+
+    async function handleTopUp(event) {
+      event.preventDefault();
+
+      const amountInput = document.getElementById('amount');
+      const amount = parseInt(amountInput.value);
+      if (!amount || amount < 1) {
+        showToast('Please enter a valid amount (minimum 1)', 'danger');
+        return;
+      }
+
+      const btn = document.getElementById('btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/top-up`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Top-up failed');
+        }
+
+        const data = await response.json();
+        const newBalance = parseFloat(data.balance || 0);
+
+        document.getElementById('topup-form').style.display = 'none';
+        document.getElementById('result-area').style.display = 'block';
+        document.getElementById('result-message').textContent =
+          `Berhasil menambahkan ${formatCurrency(amount)} pts. Saldo Anda sekarang ${formatCurrency(newBalance)} pts.`;
+        document.getElementById('display-balance').textContent = formatCurrency(newBalance);
+        document.getElementById('nav-balance').textContent = formatCurrency(newBalance) + ' pts';
+
+        showToast(`Top-up berhasil! +${formatCurrency(amount)} pts`, 'success');
+      } catch (error) {
+        showToast(error.message, 'danger');
+        btn.disabled = false;
+        btn.textContent = 'Top Up';
+      }
+    }
+
+    function goBack() {
+      if (returnUrl) {
+        window.location.href = decodeURIComponent(returnUrl);
+      } else {
+        window.location.href = 'dashboard-listener.html';
+      }
+    }
+  </script>
+</body>
+</html>

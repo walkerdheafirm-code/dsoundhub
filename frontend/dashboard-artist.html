@@ -17,6 +17,16 @@
           <span class="user-role role-artist">Artist</span>
           <span id="nav-username" style="font-weight: 600;">Username</span>
         </div>
+        <div class="user-badge" id="balance-badge" style="gap: 0.25rem;">
+          <span>Balance:</span>
+          <span id="nav-balance" style="font-weight: 700; color: var(--accent-secondary);">0 pts</span>
+        </div>
+        <button class="btn btn-secondary" onclick="window.location.href='upload-track.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          + Upload
+        </button>
+        <button class="btn btn-secondary" onclick="window.location.href='withdraw.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Withdraw
+        </button>
         <button class="btn btn-secondary" onclick="performLogout()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
           Logout
         </button>
@@ -103,45 +113,17 @@
         </div>
       </div>
 
-      <!-- Sidebar Form Upload -->
-      <div class="card" style="height: fit-content;">
+      <!-- Sidebar Upload CTA -->
+      <div class="card" style="height: fit-content; text-align: center;">
         <div class="card-title">
           <span>Upload New Track</span>
         </div>
-        <form id="upload-form" onsubmit="handleUpload(event)">
-          <div class="form-group">
-            <label for="upload-title">Track Title</label>
-            <input type="text" id="upload-title" class="form-control" placeholder="Enter track title" required>
-          </div>
-          <div class="form-group">
-            <label for="upload-genre">Genre</label>
-            <input type="text" id="upload-genre" class="form-control" placeholder="e.g. Pop, Rock, Electronic">
-          </div>
-          <div class="form-group">
-            <label for="upload-price">Price (Points)</label>
-            <input type="number" id="upload-price" class="form-control" min="0" step="0.5" placeholder="e.g. 5.0" required>
-          </div>
-          <div class="form-group">
-            <label for="upload-duration">Duration (Seconds)</label>
-            <input type="number" id="upload-duration" class="form-control" min="1" placeholder="e.g. 180" required>
-          </div>
-          
-          <div class="form-group">
-            <label>Audio File (MP3/WAV)</label>
-            <div id="drop-zone" class="file-drop-zone" onclick="document.getElementById('upload-file').click()">
-              <span class="icon">📁</span>
-              <p id="drop-zone-text">Drag & drop your audio file here, or click to browse</p>
-              <input type="file" id="upload-file" accept="audio/mpeg, audio/wav, audio/mp3" style="display: none;" onchange="handleFileSelect(this)">
-            </div>
-            <div id="file-info" style="display: none; font-size: 0.8rem; color: var(--accent-secondary); margin-bottom: 1rem;">
-              Selected: <span id="file-info-name">filename.mp3</span> (<span id="file-info-size">0 MB</span>)
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-primary btn-block" id="upload-btn">
-            Publish Track
-          </button>
-        </form>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
+          Publish a new song to the catalog. Set your title, genre, price, and upload an audio file.
+        </p>
+        <a href="upload-track.html" class="btn btn-primary btn-block" style="text-decoration: none;">
+          + Upload Track
+        </a>
       </div>
     </div>
   </main>
@@ -180,18 +162,28 @@
       document.getElementById('nav-username').textContent = authUser.username;
     }
 
-    let selectedFile = null;
     let currentAudio = null;
     let currentSongId = null;
     let isPlaying = false;
 
-    // Load elements on start
     window.addEventListener('DOMContentLoaded', async () => {
+      await loadBalance();
       await loadStats();
       await loadMySongs();
       await loadRoyalties();
-      setupDragAndDrop();
     });
+
+    async function loadBalance() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw/balance`);
+        if (!response.ok) throw new Error('Failed');
+        const data = await response.json();
+        const balance = parseFloat(data.balance || 0);
+        document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
+      } catch (e) {
+        console.warn('Balance load failed');
+      }
+    }
 
     async function loadStats() {
       try {
@@ -268,7 +260,7 @@
           return `
             <tr>
               <td style="font-size: 0.8rem; font-family: monospace; color: var(--text-muted);">${r.id.substring(0, 8)}...</td>
-              <td style="font-size: 0.8rem; font-family: monospace; color: var(--text-muted);">${r.transaction ? r.transaction.id.substring(0, 8) + '...' : '—'}</td>
+              <td style="font-size: 0.8rem; font-family: monospace; color: var(--text-muted);">${r.transactionId ? r.transactionId.substring(0, 8) + '...' : '—'}</td>
               <td style="font-weight: 600; color: var(--success);">${formatCurrency(r.amount)} pts</td>
               <td>${statusBadge}</td>
               <td style="font-size: 0.85rem; color: var(--text-muted);">${settledDate}</td>
@@ -279,106 +271,6 @@
       } catch (error) {
         showToast('Error loading royalties: ' + error.message, 'danger');
         document.getElementById('royalty-list').innerHTML = `<tr><td colspan="5" class="no-data" style="color: var(--danger);">Failed to load royalties</td></tr>`;
-      }
-    }
-
-    // Drag & Drop configuration
-    function setupDragAndDrop() {
-      const dropZone = document.getElementById('drop-zone');
-      
-      ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-          e.preventDefault();
-          dropZone.classList.add('dragover');
-        }, false);
-      });
-
-      ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-          e.preventDefault();
-          dropZone.classList.remove('dragover');
-        }, false);
-      });
-
-      dropZone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-          const fileInput = document.getElementById('upload-file');
-          fileInput.files = files;
-          handleFileSelect(fileInput);
-        }
-      });
-    }
-
-    function handleFileSelect(input) {
-      if (input.files && input.files[0]) {
-        selectedFile = input.files[0];
-        document.getElementById('file-info-name').textContent = selectedFile.name;
-        document.getElementById('file-info-size').textContent = (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB';
-        document.getElementById('file-info').style.display = 'block';
-        document.getElementById('drop-zone-text').textContent = 'File selected. Ready to upload.';
-      } else {
-        selectedFile = null;
-        document.getElementById('file-info').style.display = 'none';
-        document.getElementById('drop-zone-text').textContent = 'Drag & drop your audio file here, or click to browse';
-      }
-    }
-
-    async function handleUpload(e) {
-      e.preventDefault();
-      
-      if (!selectedFile) {
-        showToast('Please select or drag an audio file (MP3/WAV)', 'warning');
-        return;
-      }
-
-      const btn = document.getElementById('upload-btn');
-      btn.disabled = true;
-      btn.textContent = 'Publishing Track...';
-
-      try {
-        const title = document.getElementById('upload-title').value.trim();
-        const genre = document.getElementById('upload-genre').value.trim();
-        const price = parseFloat(document.getElementById('upload-price').value);
-        const durationSeconds = parseInt(document.getElementById('upload-duration').value);
-
-        const formData = new FormData();
-        
-        // Metadata as application/json Blob
-        const metadata = { title, genre, price, durationSeconds };
-        const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
-        
-        formData.append('metadata', metadataBlob);
-        formData.append('file', selectedFile);
-
-        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/upload`, {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Failed to upload song');
-        }
-
-        showToast('Track published successfully!', 'success');
-        
-        // Reset form
-        document.getElementById('upload-form').reset();
-        selectedFile = null;
-        document.getElementById('file-info').style.display = 'none';
-        document.getElementById('drop-zone-text').textContent = 'Drag & drop your audio file here, or click to browse';
-
-        // Refresh view data
-        await loadMySongs();
-        await loadStats();
-
-      } catch (error) {
-        showToast(error.message, 'danger');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Publish Track';
       }
     }
 

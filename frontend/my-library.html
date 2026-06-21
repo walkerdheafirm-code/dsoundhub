@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D'SoundHub — My Library</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    .song-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+    }
+    .song-card:hover {
+      border-color: rgba(255,255,255,0.15);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+
+    .card-art {
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      position: relative;
+    }
+    .card-art .play-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.3);
+      opacity: 0;
+      transition: var(--transition);
+      cursor: pointer;
+    }
+    .song-card:hover .card-art .play-overlay {
+      opacity: 1;
+    }
+    .play-overlay .circle-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.9);
+      border: none;
+      color: #000;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+    }
+    .play-overlay .circle-btn:hover {
+      transform: scale(1.1);
+    }
+
+    .card-body {
+      padding: 1rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .card-body .card-title-text {
+      font-weight: 600;
+      font-size: 1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-body .card-artist {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .card-body .card-genre {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-secondary);
+      font-weight: 600;
+    }
+    .card-body .play-count {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: auto;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .play-count .btn {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.75rem;
+    }
+
+    .no-songs {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 600px) {
+      .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 0.75rem;
+      }
+      .card-art {
+        height: 100px;
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container navbar-container">
+      <div class="brand">
+        <div class="brand-icon">D</div> D'SoundHub
+      </div>
+      <div class="nav-user">
+        <div class="user-badge">
+          <span class="user-role role-listener">Listener</span>
+          <span id="nav-username" style="font-weight: 600;">Username</span>
+        </div>
+        <div class="user-badge" id="balance-badge" style="gap: 0.25rem;">
+          <span>Balance:</span>
+          <span id="nav-balance" style="font-weight: 700; color: var(--accent-secondary);">0 pts</span>
+        </div>
+        <button class="btn btn-secondary" onclick="window.location.href='topup.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Top Up
+        </button>
+        <button class="btn btn-secondary" onclick="window.location.href='dashboard-listener.html'" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Catalog
+        </button>
+        <button class="btn btn-secondary" onclick="performLogout()" style="padding: 0.35rem 0.8rem; font-size: 0.85rem;">
+          Logout
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container mt-4">
+    <div class="flex-between mb-4">
+      <div>
+        <h1 style="margin-bottom: 0.2rem;">My Library</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Songs you've purchased.</p>
+      </div>
+    </div>
+
+    <div id="library-grid" class="card-grid">
+      <div class="no-songs">Loading library...</div>
+    </div>
+  </main>
+
+  <div id="player-bar" class="player-bar">
+    <div class="player-container">
+      <div class="player-info">
+        <div id="player-track-title" class="player-title">Track Title</div>
+        <div id="player-track-artist" class="player-artist">Artist</div>
+      </div>
+      <div class="player-controls">
+        <div class="control-buttons">
+          <button id="player-play-pause-btn" class="play-pause-btn">&#9654;</button>
+        </div>
+        <div class="player-timeline">
+          <span id="player-time-current" class="time-display">0:00</span>
+          <input type="range" id="player-timeline-slider" class="timeline-slider" min="0" max="100" value="0">
+          <span id="player-time-duration" class="time-display">0:00</span>
+        </div>
+      </div>
+      <div class="player-volume">
+        <span class="volume-icon">&#128266;</span>
+        <input type="range" id="player-volume-slider" class="volume-slider" min="0" max="1" step="0.05" value="0.7">
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    const authUser = requireAuth(['LISTENER']);
+    if (authUser) {
+      document.getElementById('nav-username').textContent = authUser.username;
+    }
+
+    let artistMap = {};
+    let currentAudio = null;
+    let currentSongId = null;
+    let isPlaying = false;
+
+    const GRADIENTS = [
+      ['#667eea', '#764ba2'],
+      ['#f093fb', '#f5576c'],
+      ['#4facfe', '#00f2fe'],
+      ['#43e97b', '#38f9d7'],
+      ['#fa709a', '#fee140'],
+      ['#a18cd1', '#fbc2eb'],
+      ['#fccb90', '#d57eeb'],
+      ['#e0c3fc', '#8ec5fc'],
+      ['#f5576c', '#ff6f91'],
+      ['#30cfd0', '#330867'],
+      ['#a8edea', '#fed6e3'],
+      ['#5ee7df', '#b490ca'],
+      ['#d4fc79', '#96e6a1'],
+      ['#84fab0', '#8fd3f4'],
+      ['#cfd9df', '#e2ebf0'],
+      ['#a1c4fd', '#c2e9fb'],
+    ];
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await Promise.all([loadArtists(), loadBalance()]);
+      await loadLibrary();
+    });
+
+    async function loadArtists() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/artists`);
+        if (!response.ok) return;
+        const artists = await response.json();
+        artists.forEach(a => { artistMap[a.id] = a.username; });
+      } catch (e) { console.warn('Failed to load artists'); }
+    }
+
+    async function loadBalance() {
+      try {
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/balance`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const balance = parseFloat(data.balance || 0);
+        document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
+      } catch (e) { console.warn('Balance load failed'); }
+    }
+
+    async function loadLibrary() {
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/my-library`);
+        if (!response.ok) throw new Error('Failed to load library');
+        const songs = await response.json();
+        renderLibrary(songs);
+      } catch (error) {
+        document.getElementById('library-grid').innerHTML =
+          `<div class="no-songs" style="color:var(--danger);">Failed to load library</div>`;
+        showToast('Error: ' + error.message, 'danger');
+      }
+    }
+
+    function renderLibrary(songs) {
+      const grid = document.getElementById('library-grid');
+      if (songs.length === 0) {
+        grid.innerHTML = `<div class="no-songs">Your library is empty. <a href="dashboard-listener.html">Browse catalog</a></div>`;
+        return;
+      }
+
+      grid.innerHTML = songs.map((song, index) => {
+        const gradient = GRADIENTS[index % GRADIENTS.length];
+        const artistName = artistMap[song.artistId] || song.artistId.substring(0, 8) + '...';
+
+        return `
+          <div class="song-card">
+            <div class="card-art" style="background: linear-gradient(135deg, ${gradient[0]}, ${gradient[1]});">
+              <span>🎵</span>
+              <div class="play-overlay" onclick="playSong('${song.id}','${song.title.replace(/'/g, "\\'")}','${artistName}')">
+                <button class="circle-btn">&#9654;</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="card-title-text" title="${song.title}">${song.title}</div>
+              <div class="card-genre">${song.genre || '—'}</div>
+              <div class="card-artist">${artistName}</div>
+              <div class="play-count">
+                <span>${formatDuration(song.durationSeconds)}</span>
+                <button class="btn btn-secondary" onclick="playSong('${song.id}','${song.title.replace(/'/g, "\\'")}','${artistName}')" style="padding:0.3rem 0.6rem;font-size:0.75rem;">&#9654; Play</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /* ----- PLAYER ----- */
+    async function playSong(songId, songTitle, artistName) {
+      try {
+        if (currentSongId === songId && currentAudio) {
+          if (isPlaying) { currentAudio.pause(); } else { await currentAudio.play(); }
+          return;
+        }
+        if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/preview/${songId}`);
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+
+        currentAudio = new Audio(audioUrl);
+        currentSongId = songId;
+
+        const playerBar = document.getElementById('player-bar');
+        playerBar.classList.add('active');
+
+        document.getElementById('player-track-title').textContent = songTitle;
+        document.getElementById('player-track-artist').textContent = artistName;
+
+        const playPauseBtn = document.getElementById('player-play-pause-btn');
+        const timeline = document.getElementById('player-timeline-slider');
+        const timeCurrent = document.getElementById('player-time-current');
+        const timeDuration = document.getElementById('player-time-duration');
+        const volumeSlider = document.getElementById('player-volume-slider');
+
+        currentAudio.addEventListener('play', () => { isPlaying = true; playPauseBtn.innerHTML = '&#9610;&#9610;'; });
+        currentAudio.addEventListener('pause', () => { isPlaying = false; playPauseBtn.innerHTML = '&#9654;'; });
+        currentAudio.addEventListener('timeupdate', () => {
+          if (!currentAudio) return;
+          const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
+          timeline.value = progress || 0;
+          timeCurrent.textContent = formatDuration(currentAudio.currentTime);
+        });
+        currentAudio.addEventListener('loadedmetadata', () => {
+          timeDuration.textContent = formatDuration(currentAudio.duration);
+        });
+        currentAudio.addEventListener('ended', () => {
+          isPlaying = false; playPauseBtn.innerHTML = '&#9654;'; timeline.value = 0; timeCurrent.textContent = '0:00';
+        });
+
+        playPauseBtn.onclick = () => { if (isPlaying) currentAudio.pause(); else currentAudio.play(); };
+        timeline.oninput = () => { const t = (timeline.value / 100) * currentAudio.duration; currentAudio.currentTime = t; };
+        volumeSlider.oninput = () => { currentAudio.volume = volumeSlider.value; };
+        currentAudio.volume = volumeSlider.value;
+        await currentAudio.play();
+      } catch (error) {
+        showToast('Playback error: ' + error.message, 'danger');
+      }
+    }
+  </script>
+</body>
+</html>
