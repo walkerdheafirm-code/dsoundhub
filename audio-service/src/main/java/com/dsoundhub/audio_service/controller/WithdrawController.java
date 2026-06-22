@@ -1,11 +1,8 @@
 package com.dsoundhub.audio_service.controller;
 
-import com.dsoundhub.audio_service.dto.WithdrawRequest;
 import com.dsoundhub.audio_service.entity.Withdrawal;
 import com.dsoundhub.audio_service.service.WithdrawService;
-import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,25 +23,23 @@ public class WithdrawController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ARTIST')")
     public ResponseEntity<Map<String, Object>> withdraw(
             @AuthenticationPrincipal String userIdStr,
-            @Valid @RequestBody WithdrawRequest request) {
+            @RequestParam BigDecimal amount) {
 
         UUID userId = UUID.fromString(userIdStr);
-        Withdrawal withdrawal = withdrawService.requestWithdraw(userId, request.amount());
+        Withdrawal withdrawal = withdrawService.requestWithdraw(userId, amount);
         BigDecimal newBalance = withdrawService.getBalance(userId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Penarikan berhasil! Silakan cek email untuk notifikasi.");
         response.put("withdrawalId", withdrawal.getId().toString());
-        response.put("amount", request.amount());
+        response.put("amount", amount);
         response.put("balance", newBalance);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/history")
-    @PreAuthorize("hasRole('ARTIST')")
     public ResponseEntity<List<Map<String, Object>>> history(
             @AuthenticationPrincipal String userIdStr) {
 
@@ -62,7 +57,6 @@ public class WithdrawController {
     }
 
     @GetMapping("/balance")
-    @PreAuthorize("hasRole('ARTIST')")
     public ResponseEntity<Map<String, BigDecimal>> balance(
             @AuthenticationPrincipal String userIdStr) {
 

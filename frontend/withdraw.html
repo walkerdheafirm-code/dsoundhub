@@ -205,10 +205,8 @@
       btn.textContent = 'Processing...';
 
       try {
-        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount })
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw?amount=${amount}`, {
+          method: 'POST'
         });
 
         if (!response.ok) {
