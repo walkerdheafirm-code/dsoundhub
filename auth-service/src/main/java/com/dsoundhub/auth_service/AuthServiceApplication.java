@@ -9,12 +9,17 @@ import io.github.cdimascio.dotenv.Dotenv;
 public class AuthServiceApplication {
 
 	public static void main(String[] args) {
+		loadDotenv(".");
+		loadDotenv("..");
+		SpringApplication.run(AuthServiceApplication.class, args);
+	}
+
+	private static void loadDotenv(String directory) {
 		Dotenv dotenv = Dotenv.configure()
+				.directory(directory)
 				.ignoreIfMissing()
 				.load();
-
 		dotenv.entries().forEach(entry -> System.setProperty(entry.getKey(), entry.getValue()));
-		SpringApplication.run(AuthServiceApplication.class, args);
 	}
 
 }

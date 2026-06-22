@@ -152,13 +152,13 @@
 
     async function loadBalance() {
       try {
-        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw/balance`);
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/balance`);
         if (!response.ok) return;
         const data = await response.json();
         const balance = parseFloat(data.balance || 0);
         document.getElementById('display-balance').textContent = formatCurrency(balance);
         document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
-      } catch (e) { console.warn('Balance load failed'); }
+      } catch (e) { showToast('Gagal memuat saldo', 'danger'); }
     }
 
     async function loadHistory() {
@@ -220,7 +220,7 @@
         document.getElementById('withdraw-form').style.display = 'none';
         document.getElementById('result-area').style.display = 'block';
         document.getElementById('result-message').textContent =
-          `Berhasil menarik ${formatCurrency(amount)} pts. Saldo Anda sekarang ${formatCurrency(newBalance)} pts. Cek email untuk notifikasi.`;
+          `Berhasil menarik ${formatCurrency(amount)} pts. Saldo Anda sekarang ${formatCurrency(newBalance)} pts.`;
         document.getElementById('display-balance').textContent = formatCurrency(newBalance);
         document.getElementById('nav-balance').textContent = formatCurrency(newBalance) + ' pts';
 

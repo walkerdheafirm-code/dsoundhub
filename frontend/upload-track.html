@@ -108,12 +108,12 @@
 
     async function loadBalance() {
       try {
-        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/withdraw/balance`);
+        const response = await apiCall(`${AUTH_SERVICE_URL}/api/auth/balance`);
         if (!response.ok) return;
         const data = await response.json();
         const balance = parseFloat(data.balance || 0);
         document.getElementById('nav-balance').textContent = formatCurrency(balance) + ' pts';
-      } catch (e) { console.warn('Balance load failed'); }
+      } catch (e) { showToast('Gagal memuat saldo', 'danger'); }
     }
 
     const dropZone = document.getElementById('drop-zone');

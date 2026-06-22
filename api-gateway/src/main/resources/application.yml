@@ -15,7 +15,12 @@ spring:
         - id: audio-service
           uri: http://localhost:8082
           predicates:
-            - Path=/api/audio/**, /api/royalties/**, /api/withdraw/**
+            - Path=/api/audio/**, /api/royalties/**
+
+        - id: withdraw-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/withdraw/**
 
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin

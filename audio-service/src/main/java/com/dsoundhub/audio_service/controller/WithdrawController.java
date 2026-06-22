@@ -32,7 +32,7 @@ public class WithdrawController {
         BigDecimal newBalance = withdrawService.getBalance(userId);
 
         Map<String, Object> response = new HashMap<>();
-        response.put("message", "Penarikan berhasil! Silakan cek email untuk notifikasi.");
+        response.put("message", "Penarikan berhasil!");
         response.put("withdrawalId", withdrawal.getId().toString());
         response.put("amount", amount);
         response.put("balance", newBalance);
