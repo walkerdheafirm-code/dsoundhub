@@ -1,5 +1,6 @@
 package com.dsoundhub.audio_service.controller;
 
+import com.dsoundhub.audio_service.dto.PublicationRequest;
 import com.dsoundhub.audio_service.dto.SongRequest;
 import com.dsoundhub.audio_service.dto.SongResponse;
 import com.dsoundhub.audio_service.entity.Song;
@@ -68,9 +69,44 @@ public class AudioController {
         return ResponseEntity.ok(audioService.getSongsByArtist(artistId));
     }
 
+    @PatchMapping("/my-songs/{id}/publication")
+    @PreAuthorize("hasRole('ARTIST')")
+    public ResponseEntity<SongResponse> setPublication(
+            @PathVariable UUID id,
+            @RequestBody PublicationRequest request,
+            @AuthenticationPrincipal String userIdStr) {
+
+        UUID artistId = UUID.fromString(userIdStr);
+        return ResponseEntity.ok(audioService.setPublication(id, artistId, request.published()));
+    }
+
+    @DeleteMapping("/my-songs/{id}")
+    @PreAuthorize("hasRole('ARTIST')")
+    public ResponseEntity<Map<String, Object>> deleteSong(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal String userIdStr) throws IOException {
+
+        UUID artistId = UUID.fromString(userIdStr);
+        boolean permanentlyDeleted = audioService.deleteSong(id, artistId);
+        String message = permanentlyDeleted
+                ? "Song and audio file deleted permanently"
+                : "Song removed from the artist dashboard; existing buyers keep access";
+        return ResponseEntity.ok(Map.of(
+                "message", message,
+                "permanentlyDeleted", permanentlyDeleted
+        ));
+    }
+
     @GetMapping("/preview/{id}")
-    public ResponseEntity<Resource> previewSong(@PathVariable UUID id) throws IOException {
+    public ResponseEntity<Resource> previewSong(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal String userIdStr) throws IOException {
+
         Song song = audioService.getSongById(id);
+        UUID userId = UUID.fromString(userIdStr);
+        if (!audioService.canPreview(song, userId)) {
+            return ResponseEntity.status(403).build();
+        }
         audioService.incrementPlayCount(id);
 
         Path filePath = Paths.get(song.getFilePath());
@@ -106,15 +142,7 @@ public class AudioController {
         UUID listenerId = UUID.fromString(userIdStr);
         List<SongResponse> songs = transactionService.getListenerLibrary(listenerId)
                 .stream()
-                .map(t -> new SongResponse(
-                        t.getSong().getId(),
-                        t.getSong().getArtistId(),
-                        t.getSong().getTitle(),
-                        t.getSong().getGenre(),
-                        t.getSong().getPrice(),
-                        t.getSong().getDurationSeconds(),
-                        t.getSong().getTotalPlays(),
-                        t.getSong().getCreatedAt()))
+                .map(t -> audioService.toResponse(t.getSong()))
                 .toList();
         return ResponseEntity.ok(songs);
     }

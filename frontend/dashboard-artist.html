@@ -75,12 +75,14 @@
                   <th>Price</th>
                   <th>Duration</th>
                   <th>Plays</th>
+                  <th>Status</th>
                   <th>Preview</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="artist-songs-list">
                 <tr>
-                  <td colspan="6" class="no-data">Loading tracks...</td>
+                  <td colspan="8" class="no-data">Loading tracks...</td>
                 </tr>
               </tbody>
             </table>
@@ -211,7 +213,7 @@
 
         const tbody = document.getElementById('artist-songs-list');
         if (data.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="no-data">You have not uploaded any tracks.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="no-data">You have not uploaded any tracks.</td></tr>`;
           return;
         }
 
@@ -223,16 +225,76 @@
             <td>${formatDuration(song.durationSeconds)}</td>
             <td>${song.totalPlays || 0}</td>
             <td>
+              ${song.status === 'PUBLISHED'
+                ? `<span class="badge-status status-active">Published</span>`
+                : `<span class="badge-status status-pending">Unpublished</span>`}
+            </td>
+            <td>
               <button class="btn btn-secondary" onclick="playPreview('${song.id}', '${song.title}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
                 Play
               </button>
+            </td>
+            <td>
+              <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+                <button class="btn btn-secondary" onclick="setSongPublication('${song.id}', ${song.status !== 'PUBLISHED'})" style="padding:0.25rem 0.5rem;font-size:0.75rem;">
+                  ${song.status === 'PUBLISHED' ? 'Tarik dari Publik' : 'Publish Ulang'}
+                </button>
+                <button class="btn btn-danger" onclick="deleteSong('${song.id}')" style="padding:0.25rem 0.5rem;font-size:0.75rem;">
+                  Hapus
+                </button>
+              </div>
             </td>
           </tr>
         `).join('');
 
       } catch (error) {
         showToast('Error loading tracks: ' + error.message, 'danger');
-        document.getElementById('artist-songs-list').innerHTML = `<tr><td colspan="6" class="no-data" style="color: var(--danger);">Failed to load tracks</td></tr>`;
+        document.getElementById('artist-songs-list').innerHTML = `<tr><td colspan="8" class="no-data" style="color: var(--danger);">Failed to load tracks</td></tr>`;
+      }
+    }
+
+    async function setSongPublication(songId, published) {
+      const action = published ? 'mempublikasikan ulang' : 'menarik lagu dari publik';
+      if (!confirm(`Yakin ingin ${action}?`)) return;
+
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/my-songs/${songId}/publication`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ published })
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'Gagal mengubah status lagu');
+        }
+        showToast(published ? 'Lagu dipublikasikan kembali' : 'Lagu ditarik dari katalog publik', 'success');
+        await loadMySongs();
+      } catch (error) {
+        showToast(error.message, 'danger');
+      }
+    }
+
+    async function deleteSong(songId) {
+      if (!confirm('Hapus lagu ini? Lagu yang sudah dibeli tetap tersedia untuk pembeli, tetapi tidak lagi tampil di dashboard dan katalog.')) return;
+
+      try {
+        const response = await apiCall(`${AUDIO_SERVICE_URL}/api/audio/my-songs/${songId}`, {
+          method: 'DELETE'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || 'Gagal menghapus lagu');
+
+        if (currentSongId === songId && currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+          currentSongId = null;
+          document.getElementById('player-bar').classList.remove('active');
+        }
+
+        showToast(data.message || 'Lagu berhasil dihapus', 'success');
+        await loadMySongs();
+      } catch (error) {
+        showToast(error.message, 'danger');
       }
     }
 

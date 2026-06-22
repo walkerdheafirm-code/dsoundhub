@@ -40,6 +40,10 @@ public class TransactionService {
         Song song = songRepository.findById(songId)
                 .orElseThrow(() -> new RuntimeException("Song not found"));
 
+        if (song.getStatus() != null && song.getStatus() != SongStatus.PUBLISHED) {
+            throw new RuntimeException("Song is not available for purchase");
+        }
+
         BigDecimal balance = jdbcTemplate.queryForObject(
                 "SELECT balance FROM users WHERE id = ?::uuid",
                 BigDecimal.class,

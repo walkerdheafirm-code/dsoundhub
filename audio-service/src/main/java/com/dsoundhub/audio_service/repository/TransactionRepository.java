@@ -10,5 +10,6 @@ import java.util.UUID;
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
     boolean existsByListenerIdAndSongId(UUID listenerId, UUID songId);
+    boolean existsBySongId(UUID songId);
     List<Transaction> findByListenerId(UUID listenerId);
 }

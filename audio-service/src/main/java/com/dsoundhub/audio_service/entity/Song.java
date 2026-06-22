@@ -34,6 +34,10 @@ public class Song {
     @Column(name = "total_plays")
     private Integer totalPlays = 0;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'PUBLISHED'")
+    private SongStatus status = SongStatus.PUBLISHED;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -59,6 +63,8 @@ public class Song {
     public void setPrice(BigDecimal price) { this.price = price; }
     public Integer getTotalPlays() { return totalPlays; }
     public void setTotalPlays(Integer totalPlays) { this.totalPlays = totalPlays; }
+    public SongStatus getStatus() { return status; }
+    public void setStatus(SongStatus status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

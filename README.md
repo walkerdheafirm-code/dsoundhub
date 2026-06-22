@@ -202,6 +202,7 @@ Browser / Frontend (HTML + JS)
 | `duration_seconds` | `INTEGER` | Durasi total lagu |
 | `price` | `DECIMAL(10,2)` | Harga dalam poin virtual |
 | `total_plays` | `INTEGER` | Counter streaming cuplikan |
+| `status` | `VARCHAR(20)` | `PUBLISHED`, `UNPUBLISHED`, atau `DELETED` |
 | `created_at` | `TIMESTAMP` | Waktu upload |
 
 **Tabel: `transactions`**
@@ -252,6 +253,8 @@ Browser / Frontend (HTML + JS)
 | `POST` | `/api/audio/purchase/{id}` | `LISTENER` | Beli lagu dengan saldo virtual |
 | `GET` | `/api/audio/my-library` | `LISTENER` | Lagu yang sudah dibeli |
 | `GET` | `/api/audio/my-songs` | `ARTIST` | Lagu yang diunggah artist |
+| `PATCH` | `/api/audio/my-songs/{id}/publication` | `ARTIST` | Tarik lagu dari publik atau publish ulang |
+| `DELETE` | `/api/audio/my-songs/{id}` | `ARTIST` | Hapus lagu; akses pembeli lama tetap dipertahankan |
 | `GET` | `/api/royalties/my` | `ARTIST` | Rincian royalti artist |
 | `GET` | `/api/royalties/summary` | `ADMIN` | Ringkasan royalti semua artist |
 
@@ -438,14 +441,17 @@ dsoundhub/
 | AC-09 | Pembelian duplikat (lagu yang sama) ditolak dengan pesan error yang sesuai. |
 | AC-10 | Royalti 70% terhitung otomatis setiap kali transaksi `COMPLETED` terbuat. |
 | AC-11 | User dengan role `LISTENER` yang mencoba upload ditolak dengan **HTTP 403**. |
+| AC-12 | Artist dapat menarik dan mempublikasikan ulang lagu miliknya tanpa memengaruhi library pembeli. |
+| AC-13 | Lagu yang dihapus hilang dari katalog; jika pernah dibeli, file dan histori transaksi tetap tersedia bagi pembeli. |
+| AC-14 | Lagu nonpublik tidak dapat dibeli atau diputar oleh listener yang tidak memilikinya. |
 
 ### Keamanan
 
 | ID | Kriteria |
 |---|---|
-| AC-12 | Request tanpa JWT ke endpoint terproteksi ditolak dengan **HTTP 401**. |
-| AC-13 | JWT kadaluarsa menghasilkan **HTTP 401** dengan pesan `"Token expired"`. |
-| AC-14 | User ter-ban dengan JWT masih valid ditolak dengan **HTTP 403** `"Account suspended"`. |
+| AC-15 | Request tanpa JWT ke endpoint terproteksi ditolak dengan **HTTP 401**. |
+| AC-16 | JWT kadaluarsa menghasilkan **HTTP 401** dengan pesan `"Token expired"`. |
+| AC-17 | User ter-ban dengan JWT masih valid ditolak dengan **HTTP 403** `"Account suspended"`. |
 
 ---
 

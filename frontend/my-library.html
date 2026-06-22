@@ -284,6 +284,9 @@
               <div class="card-title-text" title="${song.title}">${song.title}</div>
               <div class="card-genre">${song.genre || '—'}</div>
               <div class="card-artist">${artistName}</div>
+              ${song.status && song.status !== 'PUBLISHED'
+                ? `<div style="margin-top:0.45rem;"><span class="badge-status status-pending">Tidak tersedia di katalog</span></div>`
+                : ''}
               <div class="play-count">
                 <span>${formatDuration(song.durationSeconds)}</span>
                 <button class="btn btn-secondary" onclick="playSong('${song.id}','${song.title.replace(/'/g, "\\'")}','${artistName}')" style="padding:0.3rem 0.6rem;font-size:0.75rem;">&#9654; Play</button>

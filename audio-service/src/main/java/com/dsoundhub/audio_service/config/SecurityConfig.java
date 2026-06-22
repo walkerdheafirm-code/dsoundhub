@@ -41,7 +41,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/audio/upload").hasRole("ARTIST")
-                .requestMatchers("/api/audio/my-songs").hasRole("ARTIST")
+                .requestMatchers("/api/audio/my-songs/**").hasRole("ARTIST")
                 .requestMatchers("/api/audio/purchase/**").hasRole("LISTENER")
                 .requestMatchers("/api/audio/my-library").hasRole("LISTENER")
                 .requestMatchers("/api/royalties/my").hasRole("ARTIST")
@@ -59,7 +59,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:5500", "http://localhost:5500"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
